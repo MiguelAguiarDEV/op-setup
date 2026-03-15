@@ -1,4 +1,4 @@
-// Package pipeline orchestrates the backup → validate → inject workflow.
+// Package pipeline orchestrates the Prepare → Install → Deploy → Apply workflow.
 package pipeline
 
 // Stage identifies a phase of the pipeline.
@@ -6,6 +6,8 @@ type Stage string
 
 const (
 	StagePrepare  Stage = "prepare"
+	StageInstall  Stage = "install"
+	StageDeploy   Stage = "deploy"
 	StageApply    Stage = "apply"
 	StageRollback Stage = "rollback"
 )
@@ -48,7 +50,17 @@ type ProgressEvent struct {
 type ProgressFunc func(ProgressEvent)
 
 // StagePlan defines the steps for each stage of the pipeline.
+//
+// Execution order: Prepare → Install → Deploy → Apply.
+// Each stage is optional — empty slices are skipped.
 type StagePlan struct {
 	Prepare []Step
-	Apply   []Step
+	Install []Step // Tool installation (Phase 1 installers).
+	Deploy  []Step // Dotfile deployment (Phase 2 deployer).
+	Apply   []Step // MCP config injection (original v1 behavior).
+}
+
+// TotalSteps returns the total number of steps across all stages.
+func (p StagePlan) TotalSteps() int {
+	return len(p.Prepare) + len(p.Install) + len(p.Deploy) + len(p.Apply)
 }

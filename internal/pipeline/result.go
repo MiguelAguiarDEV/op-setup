@@ -28,6 +28,8 @@ type StageResult struct {
 // ExecutionResult holds the outcome of the entire pipeline.
 type ExecutionResult struct {
 	Prepare  StageResult
+	Install  StageResult
+	Deploy   StageResult
 	Apply    StageResult
 	Rollback *StageResult // nil if no rollback was needed.
 	Err      error

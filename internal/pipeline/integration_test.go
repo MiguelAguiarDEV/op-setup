@@ -45,7 +45,7 @@ func TestIntegration_FullRoundTrip(t *testing.T) {
 	}
 
 	// Plan for Claude + OpenCode with Engram + Context7.
-	plan, err := planner.Plan(
+	plan, err := planner.PlanMCP(
 		[]model.AgentID{model.AgentClaudeCode, model.AgentOpenCode},
 		[]model.ComponentID{model.ComponentEngram, model.ComponentContext7},
 	)
@@ -127,7 +127,7 @@ func TestIntegration_Idempotent(t *testing.T) {
 		HomeDir:    homeDir,
 		BackupRoot: filepath.Join(homeDir, ".op-setup", "backups", "run1"),
 	}
-	plan1, _ := planner1.Plan(
+	plan1, _ := planner1.PlanMCP(
 		[]model.AgentID{model.AgentClaudeCode},
 		[]model.ComponentID{model.ComponentEngram},
 	)
@@ -146,7 +146,7 @@ func TestIntegration_Idempotent(t *testing.T) {
 		HomeDir:    homeDir,
 		BackupRoot: filepath.Join(homeDir, ".op-setup", "backups", "run2"),
 	}
-	plan2, _ := planner2.Plan(
+	plan2, _ := planner2.PlanMCP(
 		[]model.AgentID{model.AgentClaudeCode},
 		[]model.ComponentID{model.ComponentEngram},
 	)

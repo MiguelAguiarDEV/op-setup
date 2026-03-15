@@ -131,3 +131,166 @@ func TestOrchestrator_EmptyPlan(t *testing.T) {
 		t.Fatalf("unexpected error: %v", result.Err)
 	}
 }
+
+func TestOrchestrator_AllFourStages_Success(t *testing.T) {
+	plan := StagePlan{
+		Prepare: []Step{&fakeStep{id: "prep1"}},
+		Install: []Step{&fakeStep{id: "inst1"}, &fakeStep{id: "inst2"}},
+		Deploy:  []Step{&fakeStep{id: "dep1"}},
+		Apply:   []Step{&fakeStep{id: "apply1"}},
+	}
+
+	o := NewOrchestrator(nil)
+	result := o.Execute(plan)
+
+	if result.Err != nil {
+		t.Fatalf("unexpected error: %v", result.Err)
+	}
+	if !result.Prepare.Success {
+		t.Fatal("prepare should succeed")
+	}
+	if !result.Install.Success {
+		t.Fatal("install should succeed")
+	}
+	if !result.Deploy.Success {
+		t.Fatal("deploy should succeed")
+	}
+	if !result.Apply.Success {
+		t.Fatal("apply should succeed")
+	}
+	if result.Rollback != nil {
+		t.Fatal("rollback should be nil when all succeed")
+	}
+}
+
+func TestOrchestrator_InstallFails_RollbackInstallOnly(t *testing.T) {
+	i1 := &fakeRollbackStep{fakeStep: fakeStep{id: "inst1"}}
+	i2 := &fakeRollbackStep{fakeStep: fakeStep{id: "inst2", err: errors.New("install fail")}}
+	d1 := &fakeStep{id: "dep1"}
+	a1 := &fakeStep{id: "apply1"}
+
+	plan := StagePlan{
+		Prepare: []Step{&fakeStep{id: "prep1"}},
+		Install: []Step{i1, i2},
+		Deploy:  []Step{d1},
+		Apply:   []Step{a1},
+	}
+
+	o := NewOrchestrator(nil)
+	result := o.Execute(plan)
+
+	if result.Err == nil {
+		t.Fatal("expected error")
+	}
+	if result.Install.Success {
+		t.Fatal("install should fail")
+	}
+	if result.Rollback == nil {
+		t.Fatal("rollback should have been executed")
+	}
+	if !i1.rolledBack {
+		t.Fatal("i1 should have been rolled back")
+	}
+	if i2.rolledBack {
+		t.Fatal("i2 should NOT have been rolled back (it failed)")
+	}
+	if d1.ran {
+		t.Fatal("deploy should not run when install fails")
+	}
+	if a1.ran {
+		t.Fatal("apply should not run when install fails")
+	}
+}
+
+func TestOrchestrator_DeployFails_RollbackDeployAndInstall(t *testing.T) {
+	i1 := &fakeRollbackStep{fakeStep: fakeStep{id: "inst1"}}
+	d1 := &fakeRollbackStep{fakeStep: fakeStep{id: "dep1", err: errors.New("deploy fail")}}
+	a1 := &fakeStep{id: "apply1"}
+
+	plan := StagePlan{
+		Prepare: []Step{&fakeStep{id: "prep1"}},
+		Install: []Step{i1},
+		Deploy:  []Step{d1},
+		Apply:   []Step{a1},
+	}
+
+	o := NewOrchestrator(nil)
+	result := o.Execute(plan)
+
+	if result.Err == nil {
+		t.Fatal("expected error")
+	}
+	if result.Rollback == nil {
+		t.Fatal("rollback should have been executed")
+	}
+	// i1 succeeded and should be rolled back (cross-stage rollback).
+	if !i1.rolledBack {
+		t.Fatal("i1 should have been rolled back (cross-stage)")
+	}
+	// d1 failed, should NOT be rolled back.
+	if d1.rolledBack {
+		t.Fatal("d1 should NOT have been rolled back (it failed)")
+	}
+	if a1.ran {
+		t.Fatal("apply should not run when deploy fails")
+	}
+}
+
+func TestOrchestrator_ApplyFails_RollbackAllThreeStages(t *testing.T) {
+	i1 := &fakeRollbackStep{fakeStep: fakeStep{id: "inst1"}}
+	d1 := &fakeRollbackStep{fakeStep: fakeStep{id: "dep1"}}
+	a1 := &fakeRollbackStep{fakeStep: fakeStep{id: "apply1"}}
+	a2 := &fakeRollbackStep{fakeStep: fakeStep{id: "apply2", err: errors.New("apply fail")}}
+
+	plan := StagePlan{
+		Prepare: []Step{&fakeStep{id: "prep1"}},
+		Install: []Step{i1},
+		Deploy:  []Step{d1},
+		Apply:   []Step{a1, a2},
+	}
+
+	o := NewOrchestrator(nil)
+	result := o.Execute(plan)
+
+	if result.Err == nil {
+		t.Fatal("expected error")
+	}
+	if result.Rollback == nil {
+		t.Fatal("rollback should have been executed")
+	}
+	// All succeeded steps across all stages should be rolled back.
+	if !i1.rolledBack {
+		t.Fatal("i1 should have been rolled back (cross-stage)")
+	}
+	if !d1.rolledBack {
+		t.Fatal("d1 should have been rolled back (cross-stage)")
+	}
+	if !a1.rolledBack {
+		t.Fatal("a1 should have been rolled back")
+	}
+	if a2.rolledBack {
+		t.Fatal("a2 should NOT have been rolled back (it failed)")
+	}
+}
+
+func TestOrchestrator_ProgressEvents_AllFourStages(t *testing.T) {
+	plan := StagePlan{
+		Prepare: []Step{&fakeStep{id: "prep1"}},
+		Install: []Step{&fakeStep{id: "inst1"}},
+		Deploy:  []Step{&fakeStep{id: "dep1"}},
+		Apply:   []Step{&fakeStep{id: "apply1"}},
+	}
+
+	var events []ProgressEvent
+	progress := func(e ProgressEvent) {
+		events = append(events, e)
+	}
+
+	o := NewOrchestrator(progress)
+	o.Execute(plan)
+
+	// 2 events per step (running + succeeded) × 4 steps = 8 events
+	if len(events) != 8 {
+		t.Fatalf("expected 8 events, got %d", len(events))
+	}
+}

@@ -1,0 +1,7 @@
+# Agents listed here are included in AGENTS.md auto-generated table.
+# Keep this list minimal to reduce default context load.
+
+planner
+code-reviewer
+security-reviewer
+release-manager

@@ -73,6 +73,77 @@ type MCPServerConfig struct {
 	Enabled bool              `json:"enabled"`
 }
 
+// InstallerID identifies an installable tool.
+type InstallerID string
+
+const (
+	InstallerOpenCode    InstallerID = "opencode"
+	InstallerEngram      InstallerID = "engram"
+	InstallerContextMode InstallerID = "context-mode"
+	InstallerPlaywright  InstallerID = "playwright"
+)
+
+// AllInstallers returns every supported InstallerID in display order.
+func AllInstallers() []InstallerID {
+	return []InstallerID{
+		InstallerOpenCode,
+		InstallerEngram,
+		InstallerContextMode,
+		InstallerPlaywright,
+	}
+}
+
+// SetupProfile determines which stages of the pipeline are active.
+type SetupProfile string
+
+const (
+	// ProfileFull runs all stages: install tools, deploy dotfiles, configure MCP.
+	ProfileFull SetupProfile = "full"
+
+	// ProfileMCPOnly only configures MCP servers (original v1 behavior).
+	ProfileMCPOnly SetupProfile = "mcp-only"
+
+	// ProfileDotfilesOnly only deploys dotfiles (agents, skills, nvim config).
+	ProfileDotfilesOnly SetupProfile = "dotfiles-only"
+)
+
+// AllProfiles returns every supported SetupProfile in display order.
+func AllProfiles() []SetupProfile {
+	return []SetupProfile{
+		ProfileFull,
+		ProfileMCPOnly,
+		ProfileDotfilesOnly,
+	}
+}
+
+// ProfileName returns a human-readable name for the profile.
+func (p SetupProfile) Name() string {
+	switch p {
+	case ProfileFull:
+		return "Full Setup"
+	case ProfileMCPOnly:
+		return "MCP Servers Only"
+	case ProfileDotfilesOnly:
+		return "Dotfiles Only"
+	default:
+		return string(p)
+	}
+}
+
+// ProfileDescription returns a description of what the profile does.
+func (p SetupProfile) Description() string {
+	switch p {
+	case ProfileFull:
+		return "Install tools, deploy dotfiles, and configure MCP servers"
+	case ProfileMCPOnly:
+		return "Only configure MCP servers in AI tool config files"
+	case ProfileDotfilesOnly:
+		return "Only deploy agents, skills, scripts, and nvim config"
+	default:
+		return ""
+	}
+}
+
 // DetectResult holds the outcome of detecting an AI coding tool.
 type DetectResult struct {
 	// Installed is true if the tool's binary was found in PATH.
