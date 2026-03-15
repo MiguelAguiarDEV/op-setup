@@ -2,7 +2,9 @@ package config
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"reflect"
 
@@ -39,7 +41,7 @@ func (m *JSONMerger) Merge(path string, key string, servers map[string]model.MCP
 
 	data, err := m.ReadFile(path)
 	if err != nil {
-		if !os.IsNotExist(err) {
+		if !errors.Is(err, fs.ErrNotExist) {
 			return false, err
 		}
 		// File doesn't exist — start with empty config.

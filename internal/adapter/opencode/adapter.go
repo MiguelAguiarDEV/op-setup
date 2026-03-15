@@ -3,11 +3,14 @@ package opencode
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
 
+	"github.com/MiguelAguiarDEV/op-setup/internal/config"
 	"github.com/MiguelAguiarDEV/op-setup/internal/model"
 )
 
@@ -25,7 +28,7 @@ func NewAdapter() *Adapter {
 		LookPath:  exec.LookPath,
 		StatPath:  os.Stat,
 		ReadFile:  os.ReadFile,
-		WriteFile: os.WriteFile,
+		WriteFile: config.WriteFileAtomic,
 	}
 }
 
@@ -52,7 +55,7 @@ func (a *Adapter) Detect(homeDir string) (model.DetectResult, error) {
 	_, err = a.StatPath(result.ConfigPath)
 	if err == nil {
 		result.ConfigFound = true
-	} else if !os.IsNotExist(err) {
+	} else if !errors.Is(err, fs.ErrNotExist) {
 		return result, err
 	}
 
@@ -76,7 +79,7 @@ func (a *Adapter) PostInject(homeDir string, components []model.ComponentID) err
 	cfgPath := a.ConfigPath(homeDir)
 	data, err := a.ReadFile(cfgPath)
 	if err != nil {
-		if os.IsNotExist(err) {
+		if errors.Is(err, fs.ErrNotExist) {
 			// Config doesn't exist yet — write a minimal config with the plugin entry.
 			cfg := map[string]any{
 				"plugin": []any{"context-mode"},

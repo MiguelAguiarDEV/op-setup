@@ -1,8 +1,6 @@
 package tui
 
 import (
-	"os"
-
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/MiguelAguiarDEV/op-setup/internal/adapter"
@@ -273,13 +271,8 @@ func (m Model) installCmd() tea.Cmd {
 			return installDoneMsg{result: pipeline.ExecutionResult{Err: err}}
 		}
 
-		// Count total steps for progress.
-		totalSteps := len(plan.Prepare) + len(plan.Apply)
-		_ = totalSteps
-
 		orchestrator := pipeline.NewOrchestrator(func(e pipeline.ProgressEvent) {
-			// Note: In a real TUI, we'd send these via p.Send().
-			// For now, they're collected in the result.
+			// TODO: Wire progress events to TUI via p.Send() for live updates.
 		})
 
 		result := orchestrator.Execute(plan)
@@ -353,10 +346,4 @@ func (m Model) View() string {
 	}
 
 	return ""
-}
-
-// HomeDir returns the home directory (for testing).
-func HomeDir() string {
-	h, _ := os.UserHomeDir()
-	return h
 }

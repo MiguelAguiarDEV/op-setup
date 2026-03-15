@@ -2,7 +2,9 @@ package config
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"sort"
 	"strings"
@@ -38,7 +40,7 @@ func (m *TOMLMerger) Merge(path string, servers map[string]model.MCPServerConfig
 
 	data, err := m.ReadFile(path)
 	if err != nil {
-		if !os.IsNotExist(err) {
+		if !errors.Is(err, fs.ErrNotExist) {
 			return false, err
 		}
 		existingContent = nil

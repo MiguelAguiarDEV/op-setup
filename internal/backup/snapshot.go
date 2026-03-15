@@ -1,8 +1,10 @@
 package backup
 
 import (
+	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"time"
@@ -31,7 +33,7 @@ func (s *Snapshotter) Create(snapshotDir string, paths []string) (Manifest, erro
 	id := now.Format("20060102-150405")
 
 	filesDir := filepath.Join(snapshotDir, "files")
-	if err := os.MkdirAll(filesDir, 0o755); err != nil {
+	if err := os.MkdirAll(filesDir, 0o700); err != nil {
 		return Manifest{}, fmt.Errorf("create snapshot dir: %w", err)
 	}
 
@@ -49,7 +51,7 @@ func (s *Snapshotter) Create(snapshotDir string, paths []string) (Manifest, erro
 
 		info, err := os.Stat(srcPath)
 		if err != nil {
-			if os.IsNotExist(err) {
+			if errors.Is(err, fs.ErrNotExist) {
 				entry.Existed = false
 				entry.SnapshotPath = "" // No backup file for non-existent sources.
 				manifest.Entries = append(manifest.Entries, entry)
@@ -82,28 +84,37 @@ func (s *Snapshotter) Create(snapshotDir string, paths []string) (Manifest, erro
 	return manifest, nil
 }
 
+// maxConfigSize is the safety limit for config file copies (10 MB).
+const maxConfigSize = 10 << 20
+
 // copyFile copies src to dst, preserving permissions.
-func copyFile(src, dst string) error {
+func copyFile(src, dst string) (err error) {
 	in, err := os.Open(src)
 	if err != nil {
 		return err
 	}
 	defer in.Close()
 
-	out, err := os.Create(dst)
-	if err != nil {
-		return err
-	}
-	defer out.Close()
-
-	if _, err := io.Copy(out, in); err != nil {
-		return err
-	}
-
 	info, err := in.Stat()
 	if err != nil {
 		return err
 	}
+	perm := info.Mode().Perm()
 
-	return os.Chmod(dst, info.Mode().Perm())
+	out, err := os.OpenFile(dst, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, perm)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		cerr := out.Close()
+		if err == nil {
+			err = cerr
+		}
+	}()
+
+	if _, err = io.Copy(out, io.LimitReader(in, maxConfigSize)); err != nil {
+		return err
+	}
+
+	return nil
 }

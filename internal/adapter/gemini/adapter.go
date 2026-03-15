@@ -2,6 +2,8 @@
 package gemini
 
 import (
+	"errors"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -46,7 +48,7 @@ func (a *Adapter) Detect(homeDir string) (model.DetectResult, error) {
 	_, err = a.StatPath(result.ConfigPath)
 	if err == nil {
 		result.ConfigFound = true
-	} else if !os.IsNotExist(err) {
+	} else if !errors.Is(err, fs.ErrNotExist) {
 		return result, err
 	}
 

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 	"time"
 )
 
@@ -40,12 +41,12 @@ func WriteManifest(path string, manifest Manifest) error {
 	}
 	data = append(data, '\n')
 
-	dir := path[:len(path)-len("/manifest.json")]
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return fmt.Errorf("create manifest dir: %w", err)
 	}
 
-	return os.WriteFile(path, data, 0o644)
+	return os.WriteFile(path, data, 0o600)
 }
 
 // ReadManifest reads a manifest from the given path.

@@ -1,6 +1,8 @@
 package backup
 
 import (
+	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"testing"
@@ -61,7 +63,7 @@ func TestRestoreService_RemovesCreatedFile(t *testing.T) {
 	}
 
 	// Verify file was removed.
-	if _, err := os.Stat(newFile); !os.IsNotExist(err) {
+	if _, err := os.Stat(newFile); !errors.Is(err, fs.ErrNotExist) {
 		t.Fatal("file should have been removed by restore")
 	}
 }
@@ -176,7 +178,7 @@ func TestRestoreService_MultipleEntries(t *testing.T) {
 	if string(d2) != "b-original" {
 		t.Fatalf("file2 = %q", d2)
 	}
-	if _, err := os.Stat(file3); !os.IsNotExist(err) {
+	if _, err := os.Stat(file3); !errors.Is(err, fs.ErrNotExist) {
 		t.Fatal("file3 should have been removed")
 	}
 }

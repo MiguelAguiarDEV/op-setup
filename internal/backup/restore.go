@@ -1,8 +1,10 @@
 package backup
 
 import (
+	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 )
 
@@ -29,7 +31,7 @@ func (s *RestoreService) Restore(manifest Manifest) error {
 			}
 		} else {
 			// File didn't exist before — remove it if it was created.
-			if err := os.Remove(entry.OriginalPath); err != nil && !os.IsNotExist(err) {
+			if err := os.Remove(entry.OriginalPath); err != nil && !errors.Is(err, fs.ErrNotExist) {
 				return fmt.Errorf("remove %s: %w", entry.OriginalPath, err)
 			}
 		}
@@ -38,22 +40,27 @@ func (s *RestoreService) Restore(manifest Manifest) error {
 }
 
 // restoreFile copies src to dst with the given permissions.
-func restoreFile(src, dst string, perm os.FileMode) error {
+func restoreFile(src, dst string, perm os.FileMode) (err error) {
 	in, err := os.Open(src)
 	if err != nil {
 		return err
 	}
 	defer in.Close()
 
-	out, err := os.Create(dst)
+	out, err := os.OpenFile(dst, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, perm)
 	if err != nil {
 		return err
 	}
-	defer out.Close()
+	defer func() {
+		cerr := out.Close()
+		if err == nil {
+			err = cerr
+		}
+	}()
 
-	if _, err := io.Copy(out, in); err != nil {
+	if _, err = io.Copy(out, io.LimitReader(in, maxConfigSize)); err != nil {
 		return err
 	}
 
-	return os.Chmod(dst, perm)
+	return nil
 }
