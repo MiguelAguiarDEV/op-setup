@@ -9,10 +9,16 @@ import (
 )
 
 // RenderReview renders the review screen before installation.
-func RenderReview(profile model.SetupProfile, agents []string, components []string) string {
+func RenderReview(profile model.SetupProfile, agents []string, components []string, dryRun bool) string {
 	var b strings.Builder
 
-	b.WriteString(RenderHeader("Review", "The following changes will be made"))
+	title := "Review"
+	subtitle := "The following changes will be made"
+	if dryRun {
+		title = "[DRY RUN] Review"
+		subtitle = "The following changes would be made (dry run — no changes will be applied)"
+	}
+	b.WriteString(RenderHeader(title, subtitle))
 	b.WriteString("\n")
 
 	b.WriteString(styles.SelectedStyle.Render("Profile:"))

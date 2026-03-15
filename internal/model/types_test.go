@@ -182,6 +182,38 @@ func TestSetupProfile_StringValues(t *testing.T) {
 	}
 }
 
+// --- ParseProfile ---
+
+func TestParseProfile_Valid(t *testing.T) {
+	tests := []struct {
+		input string
+		want  SetupProfile
+	}{
+		{"full", ProfileFull},
+		{"mcp-only", ProfileMCPOnly},
+		{"dotfiles-only", ProfileDotfilesOnly},
+	}
+	for _, tt := range tests {
+		got, err := ParseProfile(tt.input)
+		if err != nil {
+			t.Fatalf("ParseProfile(%q) error: %v", tt.input, err)
+		}
+		if got != tt.want {
+			t.Fatalf("ParseProfile(%q) = %q, want %q", tt.input, got, tt.want)
+		}
+	}
+}
+
+func TestParseProfile_Invalid(t *testing.T) {
+	tests := []string{"", "invalid", "FULL", "Full", "mcp_only"}
+	for _, input := range tests {
+		_, err := ParseProfile(input)
+		if err == nil {
+			t.Fatalf("ParseProfile(%q) should return error", input)
+		}
+	}
+}
+
 // --- AgentID constant values ---
 
 func TestAgentIDConstants_Values(t *testing.T) {

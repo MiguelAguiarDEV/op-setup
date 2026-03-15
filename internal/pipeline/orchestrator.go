@@ -86,6 +86,35 @@ func (o *Orchestrator) Execute(plan StagePlan) ExecutionResult {
 	return result
 }
 
+// DryExecute simulates execution without running any steps.
+// It emits progress events for each step as if they succeeded immediately.
+func (o *Orchestrator) DryExecute(plan StagePlan) ExecutionResult {
+	result := ExecutionResult{}
+
+	stages := []struct {
+		name  Stage
+		steps []Step
+		out   *StageResult
+	}{
+		{StagePrepare, plan.Prepare, &result.Prepare},
+		{StageInstall, plan.Install, &result.Install},
+		{StageDeploy, plan.Deploy, &result.Deploy},
+		{StageApply, plan.Apply, &result.Apply},
+	}
+
+	for _, s := range stages {
+		sr := StageResult{Stage: s.name, Success: true}
+		for _, step := range s.steps {
+			o.progress(ProgressEvent{Stage: s.name, StepID: step.ID(), Status: StatusRunning})
+			o.progress(ProgressEvent{Stage: s.name, StepID: step.ID(), Status: StatusSucceeded})
+			sr.Steps = append(sr.Steps, StepResult{StepID: step.ID(), Status: StatusSucceeded})
+		}
+		*s.out = sr
+	}
+
+	return result
+}
+
 // collectSucceeded returns the steps that succeeded from a stage result.
 func collectSucceeded(stageResult StageResult, steps []Step) []Step {
 	var succeeded []Step

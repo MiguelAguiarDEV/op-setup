@@ -9,10 +9,15 @@ import (
 )
 
 // RenderComplete renders the completion screen.
-func RenderComplete(result pipeline.ExecutionResult) string {
+func RenderComplete(result pipeline.ExecutionResult, dryRun bool) string {
 	var b strings.Builder
 
-	if result.Err == nil {
+	if dryRun {
+		b.WriteString(RenderHeader(
+			styles.SuccessStyle.Render("[DRY RUN] Complete"),
+			"No changes were made. The above shows what would have been executed.",
+		))
+	} else if result.Err == nil {
 		b.WriteString(RenderHeader(
 			styles.SuccessStyle.Render("Setup Complete!"),
 			"All stages completed successfully.",

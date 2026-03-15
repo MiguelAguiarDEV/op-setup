@@ -24,10 +24,14 @@ func installingSubtitle(profile model.SetupProfile) string {
 }
 
 // RenderInstalling renders the installation progress screen.
-func RenderInstalling(profile model.SetupProfile, events []pipeline.ProgressEvent, total int) string {
+func RenderInstalling(profile model.SetupProfile, events []pipeline.ProgressEvent, total int, dryRun bool) string {
 	var b strings.Builder
 
-	b.WriteString(RenderHeader("Installing", installingSubtitle(profile)))
+	title := "Installing"
+	if dryRun {
+		title = "[DRY RUN] Installing"
+	}
+	b.WriteString(RenderHeader(title, installingSubtitle(profile)))
 	b.WriteString("\n")
 
 	for _, e := range events {

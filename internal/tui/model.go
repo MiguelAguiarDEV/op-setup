@@ -1,8 +1,6 @@
 package tui
 
 import (
-	"os"
-
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/MiguelAguiarDEV/op-setup/internal/adapter"
@@ -13,14 +11,9 @@ import (
 	"github.com/MiguelAguiarDEV/op-setup/internal/tui/screens"
 )
 
-// componentEnvSatisfied returns true if all required env vars for the component are set.
+// componentEnvSatisfied delegates to component.EnvSatisfied.
 func componentEnvSatisfied(comp component.Component) bool {
-	for _, env := range comp.EnvVars {
-		if os.Getenv(env) == "" {
-			return false
-		}
-	}
-	return true
+	return component.EnvSatisfied(comp)
 }
 
 // Messages
@@ -60,6 +53,7 @@ type Model struct {
 	screen  Screen
 	version string
 	homeDir string
+	dryRun  bool
 
 	// Dependencies
 	registry          *adapter.Registry
@@ -98,8 +92,21 @@ type componentEntry struct {
 	selected  bool
 }
 
+// ModelOption configures optional Model parameters.
+type ModelOption func(*Model)
+
+// WithDryRun enables dry-run mode (no side effects).
+func WithDryRun(v bool) ModelOption {
+	return func(m *Model) { m.dryRun = v }
+}
+
+// WithProfile pre-selects a setup profile (skips profile screen).
+func WithProfile(p model.SetupProfile) ModelOption {
+	return func(m *Model) { m.profile = p }
+}
+
 // NewModel creates the TUI model.
-func NewModel(registry *adapter.Registry, installerReg *installer.Registry, programRef *ProgramRef, version string, homeDir string) Model {
+func NewModel(registry *adapter.Registry, installerReg *installer.Registry, programRef *ProgramRef, version string, homeDir string, opts ...ModelOption) Model {
 	// Build agent entries.
 	allAdapters := registry.All()
 	agents := make([]agentEntry, len(allAdapters))
@@ -114,7 +121,7 @@ func NewModel(registry *adapter.Registry, installerReg *installer.Registry, prog
 		comps[i] = componentEntry{component: c, selected: componentEnvSatisfied(c)}
 	}
 
-	return Model{
+	m := Model{
 		screen:            ScreenWelcome,
 		version:           version,
 		homeDir:           homeDir,
@@ -126,6 +133,12 @@ func NewModel(registry *adapter.Registry, installerReg *installer.Registry, prog
 		agents:            agents,
 		components:        comps,
 	}
+
+	for _, opt := range opts {
+		opt(&m)
+	}
+
+	return m
 }
 
 func (m Model) Init() tea.Cmd {
@@ -199,6 +212,17 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 func (m Model) handleEnter() (tea.Model, tea.Cmd) {
 	switch m.screen {
 	case ScreenWelcome:
+		// If profile was pre-selected via --profile flag, skip profile screen.
+		if m.profile != "" {
+			if m.profile == model.ProfileDotfilesOnly {
+				m.screen = ScreenReview
+				m.cursor = 0
+				return m, nil
+			}
+			m.screen = ScreenDetection
+			m.cursor = 0
+			return m, m.detectCmd()
+		}
 		m.screen = ScreenProfile
 		m.cursor = 0
 		return m, nil
@@ -343,6 +367,7 @@ func (m Model) installCmd() tea.Cmd {
 	installerReg := m.installerRegistry
 	profile := m.profile
 	ref := m.programRef
+	dryRun := m.dryRun
 
 	return func() tea.Msg {
 		planner := pipeline.NewPlanner(registry, homeDir)
@@ -371,7 +396,12 @@ func (m Model) installCmd() tea.Cmd {
 			ref.Send(progressMsg{event: e})
 		})
 
-		result := orchestrator.Execute(plan)
+		var result pipeline.ExecutionResult
+		if dryRun {
+			result = orchestrator.DryExecute(plan)
+		} else {
+			result = orchestrator.Execute(plan)
+		}
 		return installDoneMsg{result: result}
 	}
 }
@@ -439,14 +469,14 @@ func (m Model) View() string {
 				compNames = append(compNames, c.component.Name)
 			}
 		}
-		return screens.RenderReview(m.profile, agentNames, compNames)
+		return screens.RenderReview(m.profile, agentNames, compNames, m.dryRun)
 
 	case ScreenInstalling:
-		return screens.RenderInstalling(m.profile, m.progressEvents, m.totalSteps)
+		return screens.RenderInstalling(m.profile, m.progressEvents, m.totalSteps, m.dryRun)
 
 	case ScreenComplete:
 		if m.result != nil {
-			return screens.RenderComplete(*m.result)
+			return screens.RenderComplete(*m.result, m.dryRun)
 		}
 		return "Completing..."
 	}

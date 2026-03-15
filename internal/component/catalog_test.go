@@ -152,6 +152,41 @@ func TestContext7_Config(t *testing.T) {
 	}
 }
 
+// --- EnvSatisfied ---
+
+func TestEnvSatisfied_NoEnvVars(t *testing.T) {
+	c := Component{ID: "test", EnvVars: nil}
+	if !EnvSatisfied(c) {
+		t.Fatal("component with no env vars should be satisfied")
+	}
+}
+
+func TestEnvSatisfied_AllSet(t *testing.T) {
+	t.Setenv("TEST_VAR_A", "value-a")
+	t.Setenv("TEST_VAR_B", "value-b")
+	c := Component{ID: "test", EnvVars: []string{"TEST_VAR_A", "TEST_VAR_B"}}
+	if !EnvSatisfied(c) {
+		t.Fatal("component with all env vars set should be satisfied")
+	}
+}
+
+func TestEnvSatisfied_OneMissing(t *testing.T) {
+	t.Setenv("TEST_VAR_A", "value-a")
+	t.Setenv("TEST_VAR_B", "")
+	c := Component{ID: "test", EnvVars: []string{"TEST_VAR_A", "TEST_VAR_B"}}
+	if EnvSatisfied(c) {
+		t.Fatal("component with missing env var should NOT be satisfied")
+	}
+}
+
+func TestEnvSatisfied_EmptyValue(t *testing.T) {
+	t.Setenv("TEST_VAR_EMPTY", "")
+	c := Component{ID: "test", EnvVars: []string{"TEST_VAR_EMPTY"}}
+	if EnvSatisfied(c) {
+		t.Fatal("component with empty env var should NOT be satisfied")
+	}
+}
+
 func TestAll_EnabledByDefault(t *testing.T) {
 	for _, c := range All() {
 		if !c.Config.Enabled {

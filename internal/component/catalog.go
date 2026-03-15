@@ -1,7 +1,11 @@
 // Package component defines the MCP server components that op-setup can install.
 package component
 
-import "github.com/MiguelAguiarDEV/op-setup/internal/model"
+import (
+	"os"
+
+	"github.com/MiguelAguiarDEV/op-setup/internal/model"
+)
 
 // Component describes an installable MCP server.
 type Component struct {
@@ -82,6 +86,16 @@ func All() []Component {
 	out := make([]Component, len(catalog))
 	copy(out, catalog)
 	return out
+}
+
+// EnvSatisfied returns true if all required env vars for the component are set.
+func EnvSatisfied(c Component) bool {
+	for _, env := range c.EnvVars {
+		if os.Getenv(env) == "" {
+			return false
+		}
+	}
+	return true
 }
 
 // ByID returns a component by its ID. Returns false if not found.

@@ -284,6 +284,73 @@ func TestModel_Space_AllowsWithEnvVar(t *testing.T) {
 	}
 }
 
+// --- Profile pre-selection via WithProfile ---
+
+func TestModel_WithProfile_Full_SkipsProfileScreen(t *testing.T) {
+	registry, err := adapter.NewDefaultRegistry()
+	if err != nil {
+		t.Fatal(err)
+	}
+	m := NewModel(registry, nil, nil, "test", "/home/test", WithProfile(model.ProfileFull))
+
+	if m.profile != model.ProfileFull {
+		t.Fatalf("profile = %q, want %q", m.profile, model.ProfileFull)
+	}
+
+	// Press enter on welcome — should skip to detection (not profile).
+	updated, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	um := updated.(Model)
+
+	if um.screen != ScreenDetection {
+		t.Fatalf("screen = %d, want %d (should skip profile screen)", um.screen, ScreenDetection)
+	}
+	if cmd == nil {
+		t.Fatal("should produce detect command")
+	}
+}
+
+func TestModel_WithProfile_DotfilesOnly_SkipsToReview(t *testing.T) {
+	registry, err := adapter.NewDefaultRegistry()
+	if err != nil {
+		t.Fatal(err)
+	}
+	m := NewModel(registry, nil, nil, "test", "/home/test", WithProfile(model.ProfileDotfilesOnly))
+
+	// Press enter on welcome — should skip to review.
+	updated, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	um := updated.(Model)
+
+	if um.screen != ScreenReview {
+		t.Fatalf("screen = %d, want %d (should skip to review)", um.screen, ScreenReview)
+	}
+	if cmd != nil {
+		t.Fatal("dotfiles-only skip should not produce a command")
+	}
+}
+
+func TestModel_WithDryRun_SetsFlag(t *testing.T) {
+	registry, err := adapter.NewDefaultRegistry()
+	if err != nil {
+		t.Fatal(err)
+	}
+	m := NewModel(registry, nil, nil, "test", "/home/test", WithDryRun(true))
+
+	if !m.dryRun {
+		t.Fatal("dryRun should be true")
+	}
+}
+
+func TestModel_NoOptions_BackwardCompatible(t *testing.T) {
+	m := newTestModel(t)
+
+	if m.dryRun {
+		t.Fatal("dryRun should default to false")
+	}
+	if m.profile != "" {
+		t.Fatalf("profile should default to empty, got %q", m.profile)
+	}
+}
+
 // --- Esc behavior ---
 
 func TestModel_Esc_FromProfile(t *testing.T) {

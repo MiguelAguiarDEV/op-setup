@@ -193,7 +193,7 @@ func TestRenderSingleSelect_Empty(t *testing.T) {
 func TestRenderReview_ShowsSelections(t *testing.T) {
 	agents := []string{"Claude Code", "OpenCode"}
 	components := []string{"Engram", "Context7"}
-	view := RenderReview(model.ProfileMCPOnly, agents, components)
+	view := RenderReview(model.ProfileMCPOnly, agents, components, false)
 	if !strings.Contains(view, "Claude Code") {
 		t.Fatal("should contain agent name")
 	}
@@ -209,7 +209,7 @@ func TestRenderReview_ShowsSelections(t *testing.T) {
 }
 
 func TestRenderReview_DotfilesOnly(t *testing.T) {
-	view := RenderReview(model.ProfileDotfilesOnly, nil, nil)
+	view := RenderReview(model.ProfileDotfilesOnly, nil, nil, false)
 	if !strings.Contains(view, "Dotfiles Only") {
 		t.Fatal("should contain profile name")
 	}
@@ -221,7 +221,7 @@ func TestRenderReview_DotfilesOnly(t *testing.T) {
 func TestRenderReview_Full(t *testing.T) {
 	agents := []string{"Claude Code"}
 	components := []string{"Engram"}
-	view := RenderReview(model.ProfileFull, agents, components)
+	view := RenderReview(model.ProfileFull, agents, components, false)
 	if !strings.Contains(view, "Full Setup") {
 		t.Fatal("should contain profile name")
 	}
@@ -236,7 +236,7 @@ func TestRenderReview_Full(t *testing.T) {
 // --- Installing screen tests ---
 
 func TestRenderInstalling_NoEvents(t *testing.T) {
-	view := RenderInstalling(model.ProfileMCPOnly, nil, 0)
+	view := RenderInstalling(model.ProfileMCPOnly, nil, 0, false)
 	if !strings.Contains(view, "Installing") {
 		t.Fatal("should contain header")
 	}
@@ -252,7 +252,7 @@ func TestRenderInstalling_WithEvents(t *testing.T) {
 		{Stage: pipeline.StageApply, StepID: "inject-opencode-engram", Status: pipeline.StatusFailed, Err: errors.New("write error")},
 		{Stage: pipeline.StageRollback, StepID: "rollback-claude", Status: pipeline.StatusRolledBack},
 	}
-	view := RenderInstalling(model.ProfileMCPOnly, events, 4)
+	view := RenderInstalling(model.ProfileMCPOnly, events, 4, false)
 	if !strings.Contains(view, "inject-claude-engram") {
 		t.Fatal("should contain step ID")
 	}
@@ -266,7 +266,7 @@ func TestRenderInstalling_WithProgressBar(t *testing.T) {
 		{StepID: "step-1", Status: pipeline.StatusSucceeded},
 		{StepID: "step-2", Status: pipeline.StatusSucceeded},
 	}
-	view := RenderInstalling(model.ProfileMCPOnly, events, 4)
+	view := RenderInstalling(model.ProfileMCPOnly, events, 4, false)
 	if !strings.Contains(view, "2/4") {
 		t.Fatal("should show progress count")
 	}
@@ -283,7 +283,7 @@ func TestRenderInstalling_ProfileSubtitles(t *testing.T) {
 		{model.SetupProfile("unknown"), "Setting up"},
 	}
 	for _, tt := range tests {
-		view := RenderInstalling(tt.profile, nil, 0)
+		view := RenderInstalling(tt.profile, nil, 0, false)
 		if !strings.Contains(view, tt.contains) {
 			t.Fatalf("profile %q: expected %q in view", tt.profile, tt.contains)
 		}
@@ -301,7 +301,7 @@ func TestRenderComplete_Success(t *testing.T) {
 			Success: true,
 		},
 	}
-	view := RenderComplete(result)
+	view := RenderComplete(result, false)
 	if !strings.Contains(view, "Complete") {
 		t.Fatal("should indicate completion")
 	}
@@ -319,7 +319,7 @@ func TestRenderComplete_Failure(t *testing.T) {
 			},
 		},
 	}
-	view := RenderComplete(result)
+	view := RenderComplete(result, false)
 	if !strings.Contains(view, "Failed") {
 		t.Fatal("should indicate failure")
 	}
@@ -338,7 +338,7 @@ func TestRenderComplete_WithRollback(t *testing.T) {
 			},
 		},
 	}
-	view := RenderComplete(result)
+	view := RenderComplete(result, false)
 	if !strings.Contains(view, "Rollback") {
 		t.Fatal("should mention rollback")
 	}
@@ -358,7 +358,7 @@ func TestRenderComplete_WithRollbackNoSteps(t *testing.T) {
 		Err:      errors.New("failed"),
 		Rollback: &pipeline.StageResult{},
 	}
-	view := RenderComplete(result)
+	view := RenderComplete(result, false)
 	if !strings.Contains(view, "Rollback") {
 		t.Fatal("should mention rollback")
 	}
@@ -369,7 +369,7 @@ func TestRenderComplete_WithRollbackNoSteps(t *testing.T) {
 
 func TestRenderComplete_EmptySteps(t *testing.T) {
 	result := pipeline.ExecutionResult{}
-	view := RenderComplete(result)
+	view := RenderComplete(result, false)
 	if view == "" {
 		t.Fatal("should render even with empty result")
 	}
@@ -385,7 +385,7 @@ func TestRenderComplete_WithInstallSteps(t *testing.T) {
 			Success: true,
 		},
 	}
-	view := RenderComplete(result)
+	view := RenderComplete(result, false)
 	if !strings.Contains(view, "Tools Installed") {
 		t.Fatal("should show install section header")
 	}
@@ -403,7 +403,7 @@ func TestRenderComplete_WithDeploySteps(t *testing.T) {
 			Success: true,
 		},
 	}
-	view := RenderComplete(result)
+	view := RenderComplete(result, false)
 	if !strings.Contains(view, "Dotfiles Deployed") {
 		t.Fatal("should show deploy section header")
 	}
@@ -433,7 +433,7 @@ func TestRenderComplete_AllStages(t *testing.T) {
 			Success: true,
 		},
 	}
-	view := RenderComplete(result)
+	view := RenderComplete(result, false)
 	if !strings.Contains(view, "Tools Installed") {
 		t.Fatal("should show install section")
 	}
@@ -442,6 +442,45 @@ func TestRenderComplete_AllStages(t *testing.T) {
 	}
 	if !strings.Contains(view, "MCP Servers Configured") {
 		t.Fatal("should show apply section")
+	}
+}
+
+// --- Dry-run screen tests ---
+
+func TestRenderReview_DryRun(t *testing.T) {
+	agents := []string{"Claude Code"}
+	components := []string{"Engram"}
+	view := RenderReview(model.ProfileFull, agents, components, true)
+	if !strings.Contains(view, "DRY RUN") {
+		t.Fatal("dry-run review should contain DRY RUN badge")
+	}
+	if !strings.Contains(view, "no changes") {
+		t.Fatal("dry-run review should mention no changes")
+	}
+}
+
+func TestRenderInstalling_DryRun(t *testing.T) {
+	view := RenderInstalling(model.ProfileMCPOnly, nil, 0, true)
+	if !strings.Contains(view, "DRY RUN") {
+		t.Fatal("dry-run installing should contain DRY RUN badge")
+	}
+}
+
+func TestRenderComplete_DryRun(t *testing.T) {
+	result := pipeline.ExecutionResult{
+		Apply: pipeline.StageResult{
+			Steps: []pipeline.StepResult{
+				{StepID: "inject-claude-engram", Status: pipeline.StatusSucceeded},
+			},
+			Success: true,
+		},
+	}
+	view := RenderComplete(result, true)
+	if !strings.Contains(view, "DRY RUN") {
+		t.Fatal("dry-run complete should contain DRY RUN badge")
+	}
+	if !strings.Contains(view, "No changes were made") {
+		t.Fatal("dry-run complete should say no changes were made")
 	}
 }
 

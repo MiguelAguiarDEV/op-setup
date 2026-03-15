@@ -1,4 +1,4 @@
-// Package app wires together all components and runs the TUI.
+// Package app wires together all components and runs the application.
 package app
 
 import (
@@ -16,8 +16,17 @@ import (
 // Version is set at build time via -ldflags.
 var Version = "dev"
 
-// Run initializes and runs the TUI application.
-func Run() error {
+// Run initializes and runs the application.
+// If cfg.NonInteractive is true, runs headless; otherwise launches the TUI.
+func Run(cfg RunConfig) error {
+	if cfg.NonInteractive {
+		return RunHeadless(cfg)
+	}
+	return runTUI(cfg)
+}
+
+// runTUI launches the interactive TUI.
+func runTUI(cfg RunConfig) error {
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
 		return fmt.Errorf("get home dir: %w", err)
@@ -40,7 +49,16 @@ func Run() error {
 	// The reference is set after tea.NewProgram() creates the program.
 	ref := &tui.ProgramRef{}
 
-	m := tui.NewModel(registry, installerReg, ref, Version, homeDir)
+	// Build model options from CLI config.
+	var opts []tui.ModelOption
+	if cfg.DryRun {
+		opts = append(opts, tui.WithDryRun(true))
+	}
+	if cfg.Profile != "" {
+		opts = append(opts, tui.WithProfile(cfg.Profile))
+	}
+
+	m := tui.NewModel(registry, installerReg, ref, Version, homeDir, opts...)
 	p := tea.NewProgram(m, tea.WithAltScreen())
 	ref.P = p
 

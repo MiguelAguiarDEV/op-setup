@@ -1,6 +1,8 @@
 // Package model defines the core domain types shared across all packages.
 package model
 
+import "fmt"
+
 // AgentID identifies an AI coding tool.
 type AgentID string
 
@@ -141,6 +143,17 @@ func (p SetupProfile) Description() string {
 		return "Only deploy agents, skills, scripts, and nvim config"
 	default:
 		return ""
+	}
+}
+
+// ParseProfile validates and returns a SetupProfile from a string.
+// Returns an error if the string is not a valid profile.
+func ParseProfile(s string) (SetupProfile, error) {
+	switch SetupProfile(s) {
+	case ProfileFull, ProfileMCPOnly, ProfileDotfilesOnly:
+		return SetupProfile(s), nil
+	default:
+		return "", fmt.Errorf("invalid profile %q: must be one of: full, mcp-only, dotfiles-only", s)
 	}
 }
 
