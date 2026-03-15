@@ -1,6 +1,6 @@
 # op-setup
 
-TUI installer that configures [MCP](https://modelcontextprotocol.io/) servers for AI coding tools.
+TUI installer that sets up complete AI coding environments — install tools, deploy dotfiles, and configure [MCP](https://modelcontextprotocol.io/) servers.
 
 ```
                            _
@@ -13,9 +13,17 @@ TUI installer that configures [MCP](https://modelcontextprotocol.io/) servers fo
 
 ## What it does
 
-op-setup detects which AI coding tools you have installed, lets you pick which MCP servers to configure, then writes the correct config entries into each tool's config file — idempotently, with backup and rollback.
+op-setup is a single Go binary that sets up your AI coding environment from scratch. Choose a setup profile and it handles the rest — idempotently, with backup and rollback.
 
-**Supported AI tools:**
+### Setup Profiles
+
+| Profile | What it does |
+|---------|-------------|
+| **Full Setup** | Install tools + deploy dotfiles + configure MCP servers |
+| **MCP Servers Only** | Only configure MCP servers in AI tool config files |
+| **Dotfiles Only** | Only deploy agents, skills, scripts, and nvim config |
+
+### Supported AI tools
 
 | Tool | Config file | Format |
 |------|------------|--------|
@@ -24,7 +32,7 @@ op-setup detects which AI coding tools you have installed, lets you pick which M
 | Codex | `~/.codex/config.toml` | TOML (`[mcp_servers.X]`) |
 | Gemini CLI | `~/.gemini/settings.json` | JSON (`mcpServers`) |
 
-**Available MCP servers:**
+### Available MCP servers
 
 | Component | Type | Description |
 |-----------|------|-------------|
@@ -33,6 +41,19 @@ op-setup detects which AI coding tools you have installed, lets you pick which M
 | Playwright | Local | Browser automation via MCP |
 | GitHub MCP | Remote | GitHub API access via Copilot MCP |
 | Context7 | Remote | Up-to-date framework documentation |
+
+### Tool installers (Full Setup profile)
+
+| Tool | Install method |
+|------|---------------|
+| OpenCode | `npm install -g opencode` |
+| Engram | `go install github.com/Gentleman-Programming/engram/cmd/engram@latest` |
+| Context Mode | `npm install -g context-mode` |
+| Playwright | `npx playwright install --with-deps chromium` |
+
+### Embedded dotfiles (Full Setup / Dotfiles Only profiles)
+
+Deploys OpenCode agents, skills, scripts, plugins, and Neovim config to `~/.config/`.
 
 ## Install
 
@@ -59,68 +80,72 @@ op-setup
 
 The TUI guides you through:
 
-1. **Detection** — scans for installed AI tools
-2. **Agent selection** — pick which tools to configure
-3. **Component selection** — pick which MCP servers to install
-4. **Review** — confirm selections before applying
-5. **Installation** — writes configs with backup + rollback on failure
+1. **Profile selection** — choose Full Setup, MCP Only, or Dotfiles Only
+2. **Detection** — scans for installed AI tools (skipped for Dotfiles Only)
+3. **Agent selection** — pick which tools to configure (skipped for Dotfiles Only)
+4. **Component selection** — pick which MCP servers to install (skipped for Dotfiles Only)
+5. **Review** — confirm selections before applying
+6. **Installation** — executes the 4-stage pipeline with live progress
 
 ### Idempotent
 
-Running op-setup multiple times is safe. It merges new entries without overwriting existing config keys. If an MCP server entry already exists with identical config, it's skipped.
+Running op-setup multiple times is safe. It merges new entries without overwriting existing config keys. If an MCP server entry already exists with identical config, it's skipped. Dotfiles are backed up before overwriting.
 
 ### Backups
 
-Before modifying any config file, op-setup creates a timestamped backup snapshot in `~/.op-setup/backups/`. Each snapshot includes:
+Before modifying any config file or dotfile, op-setup creates a timestamped backup snapshot in `~/.op-setup/backups/`. Each snapshot includes:
 
 - Copies of all original config files
 - A `manifest.json` describing what was backed up
 - Original file permissions preserved
 
-If installation fails mid-way, the pipeline automatically rolls back all changes using the backup.
-
-## Prerequisites
-
-MCP servers must be installed separately. op-setup only writes the configuration — it does not install the servers themselves.
-
-| Component | Install |
-|-----------|---------|
-| Engram | `go install github.com/nicholasgasior/engram@latest` |
-| Context Mode | `npm install -g context-mode` |
-| Playwright | Auto-installed via `npx` (no pre-install needed) |
-| GitHub MCP | Set `GITHUB_MCP_PAT` environment variable |
-| Context7 | No install needed (remote server) |
+If any stage fails mid-way, the pipeline automatically rolls back all changes using the backup.
 
 ## Architecture
 
 ```
 cmd/op-setup/          Entry point
 internal/
-  model/               Core domain types (AgentID, ComponentID, MCPServerConfig)
+  model/               Core domain types (AgentID, ComponentID, InstallerID, SetupProfile)
   adapter/             Adapter interface + registry
     claude/            Claude Code adapter
     opencode/          OpenCode adapter (+ PostInject for plugin array)
     codex/             Codex adapter
     gemini/            Gemini CLI adapter
   component/           MCP server catalog + resolver
+  installer/           Tool installers (detect/install/rollback)
+  dotfiles/            Embedded dotfiles (go:embed) + deployer
+    embed/             18 embedded config files
   config/              Atomic file writes, JSON merger, TOML merger
   backup/              Timestamped snapshots + restore from manifest
-  pipeline/            Prepare→Apply orchestration with rollback
+  pipeline/            Prepare→Install→Deploy→Apply orchestration with rollback
     steps/             BackupStep, ValidateStep, InjectStep
   tui/                 Bubbletea TUI
-    screens/           7 screen renderers (Kanagawa theme)
+    screens/           8 screen renderers (Kanagawa theme)
     styles/            Shared lipgloss styles
-  app/                 Wires registry + TUI
+  app/                 Wires registry + installer registry + TUI
 ```
 
-**Design principles:**
+### Pipeline stages
+
+| Stage | Description |
+|-------|-------------|
+| **Prepare** | Validate dependencies + backup existing configs |
+| **Install** | Install tools (OpenCode, Engram, Context Mode, Playwright) |
+| **Deploy** | Deploy embedded dotfiles to `~/.config/` |
+| **Apply** | Inject MCP server configs into AI tool config files |
+
+Each stage is optional — the active profile determines which stages run. If any stage fails, all succeeded steps across all stages are rolled back.
+
+### Design principles
 
 - **Adapter pattern** — adding a new AI tool requires one sub-package + registry entry
 - **DI via struct fields** — all external dependencies injectable for testing
 - **Idempotent merges** — JSON and TOML mergers check before writing
 - **Atomic writes** — temp file + rename prevents partial writes on crash
-- **Backup before modify** — every config change is reversible
+- **Backup before modify** — every config/dotfile change is reversible
 - **Pipeline with rollback** — if any step fails, all previous steps are undone
+- **Profile-aware routing** — TUI flow adapts to selected profile
 
 ## Development
 
@@ -139,6 +164,7 @@ make clean         # Remove artifacts
 - `t.TempDir()` for filesystem tests (no mocks)
 - DI via struct fields for dependency injection
 - Race detector enabled by default
+- Target ≥85% coverage per package
 
 ## License
 

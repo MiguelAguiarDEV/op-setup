@@ -23,9 +23,9 @@ func RenderWelcome(version string) string {
 	b.WriteString("\n")
 	b.WriteString(styles.Tagline(version))
 	b.WriteString("\n\n")
-	b.WriteString(styles.UnselectedStyle.Render("Configure MCP servers for your AI coding tools."))
+	b.WriteString(styles.UnselectedStyle.Render("Set up your complete AI coding environment."))
 	b.WriteString("\n")
-	b.WriteString(styles.UnselectedStyle.Render("Supports: Claude Code, OpenCode, Codex, Gemini CLI"))
+	b.WriteString(styles.UnselectedStyle.Render("Install tools, deploy dotfiles, and configure MCP servers."))
 	b.WriteString("\n\n")
 	b.WriteString(RenderFooter("Press Enter to begin • q to quit"))
 
