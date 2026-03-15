@@ -103,7 +103,7 @@ func (m *TOMLMerger) Merge(path string, servers map[string]model.MCPServerConfig
 		result.WriteString("\n")
 	}
 
-	if err := m.WriteFile(path, result.Bytes(), 0o644); err != nil {
+	if err := m.WriteFile(path, result.Bytes(), 0o600); err != nil {
 		return false, err
 	}
 

@@ -3,17 +3,17 @@ package installer
 import (
 	"context"
 	"fmt"
+	"time"
 )
 
 // InstallStep wraps an Installer to implement pipeline.Step and pipeline.RollbackStep.
 // It skips installation if the tool is already detected.
 //
-// Ctx is stored as a struct field (rather than passed to Run/Rollback) because
-// the pipeline.Step interface defines Run() error with no context parameter.
-// InstallStep bridges this gap by holding the context for the underlying Installer.
+// Timeout controls the per-installer deadline. If zero, no timeout is applied.
+// The context is created internally in Run/Rollback with proper cancellation.
 type InstallStep struct {
 	Installer Installer
-	Ctx       context.Context
+	Timeout   time.Duration
 	installed bool
 	skipped   bool
 }
@@ -26,10 +26,8 @@ func (s *InstallStep) ID() string {
 // Run checks if the tool is already installed and skips if so.
 // Otherwise, it runs the installer.
 func (s *InstallStep) Run() error {
-	ctx := s.Ctx
-	if ctx == nil {
-		ctx = context.Background()
-	}
+	ctx, cancel := s.contextWithTimeout()
+	defer cancel()
 
 	// Detect: skip if already installed.
 	detected, err := s.Installer.Detect(ctx)
@@ -54,10 +52,8 @@ func (s *InstallStep) Rollback() error {
 	if !s.installed {
 		return nil
 	}
-	ctx := s.Ctx
-	if ctx == nil {
-		ctx = context.Background()
-	}
+	ctx, cancel := s.contextWithTimeout()
+	defer cancel()
 	return s.Installer.Rollback(ctx)
 }
 
@@ -69,4 +65,13 @@ func (s *InstallStep) Skipped() bool {
 // Installed returns true if Install was actually executed.
 func (s *InstallStep) Installed() bool {
 	return s.installed
+}
+
+// contextWithTimeout creates a context with the configured timeout.
+// If Timeout is zero, returns context.Background() with a no-op cancel.
+func (s *InstallStep) contextWithTimeout() (context.Context, context.CancelFunc) {
+	if s.Timeout > 0 {
+		return context.WithTimeout(context.Background(), s.Timeout)
+	}
+	return context.Background(), func() {}
 }

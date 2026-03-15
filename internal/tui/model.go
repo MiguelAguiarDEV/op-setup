@@ -427,10 +427,10 @@ func (m Model) View() string {
 				compNames = append(compNames, c.component.Name)
 			}
 		}
-		return screens.RenderReview(m.profile.Name(), agentNames, compNames)
+		return screens.RenderReview(m.profile, agentNames, compNames)
 
 	case ScreenInstalling:
-		return screens.RenderInstalling(m.progressEvents, m.totalSteps)
+		return screens.RenderInstalling(m.profile, m.progressEvents, m.totalSteps)
 
 	case ScreenComplete:
 		if m.result != nil {

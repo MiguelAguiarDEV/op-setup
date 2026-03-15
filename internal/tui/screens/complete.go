@@ -52,7 +52,13 @@ func RenderComplete(result pipeline.ExecutionResult) string {
 
 	// Show rollback info if applicable.
 	if result.Rollback != nil {
-		b.WriteString(styles.WarningStyle.Render("Rollback was executed — original configs restored."))
+		b.WriteString(styles.WarningStyle.Render("Rollback:"))
+		b.WriteString("\n")
+		if len(result.Rollback.Steps) > 0 {
+			renderStepResults(&b, result.Rollback.Steps)
+		} else {
+			b.WriteString("  Original configs restored.\n")
+		}
 		b.WriteString("\n")
 	}
 
@@ -67,7 +73,7 @@ func renderStepResults(b *strings.Builder, steps []pipeline.StepResult) {
 	for _, sr := range steps {
 		var icon string
 		switch sr.Status {
-		case pipeline.StatusSucceeded:
+		case pipeline.StatusSucceeded, pipeline.StatusRolledBack:
 			icon = styles.CheckMark
 		case pipeline.StatusFailed:
 			icon = styles.CrossMark

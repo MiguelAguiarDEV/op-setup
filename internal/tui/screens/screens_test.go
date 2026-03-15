@@ -193,7 +193,7 @@ func TestRenderSingleSelect_Empty(t *testing.T) {
 func TestRenderReview_ShowsSelections(t *testing.T) {
 	agents := []string{"Claude Code", "OpenCode"}
 	components := []string{"Engram", "Context7"}
-	view := RenderReview("MCP Servers Only", agents, components)
+	view := RenderReview(model.ProfileMCPOnly, agents, components)
 	if !strings.Contains(view, "Claude Code") {
 		t.Fatal("should contain agent name")
 	}
@@ -209,11 +209,11 @@ func TestRenderReview_ShowsSelections(t *testing.T) {
 }
 
 func TestRenderReview_DotfilesOnly(t *testing.T) {
-	view := RenderReview("Dotfiles Only", nil, nil)
+	view := RenderReview(model.ProfileDotfilesOnly, nil, nil)
 	if !strings.Contains(view, "Dotfiles Only") {
 		t.Fatal("should contain profile name")
 	}
-	if !strings.Contains(view, "Deploy agents") {
+	if !strings.Contains(view, "deploy") {
 		t.Fatal("should show dotfiles-specific info")
 	}
 }
@@ -221,7 +221,7 @@ func TestRenderReview_DotfilesOnly(t *testing.T) {
 func TestRenderReview_Full(t *testing.T) {
 	agents := []string{"Claude Code"}
 	components := []string{"Engram"}
-	view := RenderReview("Full Setup", agents, components)
+	view := RenderReview(model.ProfileFull, agents, components)
 	if !strings.Contains(view, "Full Setup") {
 		t.Fatal("should contain profile name")
 	}
@@ -236,9 +236,12 @@ func TestRenderReview_Full(t *testing.T) {
 // --- Installing screen tests ---
 
 func TestRenderInstalling_NoEvents(t *testing.T) {
-	view := RenderInstalling(nil, 0)
+	view := RenderInstalling(model.ProfileMCPOnly, nil, 0)
 	if !strings.Contains(view, "Installing") {
 		t.Fatal("should contain header")
+	}
+	if !strings.Contains(view, "Configuring MCP servers") {
+		t.Fatal("should contain MCP-specific subtitle")
 	}
 }
 
@@ -249,7 +252,7 @@ func TestRenderInstalling_WithEvents(t *testing.T) {
 		{Stage: pipeline.StageApply, StepID: "inject-opencode-engram", Status: pipeline.StatusFailed, Err: errors.New("write error")},
 		{Stage: pipeline.StageRollback, StepID: "rollback-claude", Status: pipeline.StatusRolledBack},
 	}
-	view := RenderInstalling(events, 4)
+	view := RenderInstalling(model.ProfileMCPOnly, events, 4)
 	if !strings.Contains(view, "inject-claude-engram") {
 		t.Fatal("should contain step ID")
 	}
@@ -263,9 +266,27 @@ func TestRenderInstalling_WithProgressBar(t *testing.T) {
 		{StepID: "step-1", Status: pipeline.StatusSucceeded},
 		{StepID: "step-2", Status: pipeline.StatusSucceeded},
 	}
-	view := RenderInstalling(events, 4)
+	view := RenderInstalling(model.ProfileMCPOnly, events, 4)
 	if !strings.Contains(view, "2/4") {
 		t.Fatal("should show progress count")
+	}
+}
+
+func TestRenderInstalling_ProfileSubtitles(t *testing.T) {
+	tests := []struct {
+		profile  model.SetupProfile
+		contains string
+	}{
+		{model.ProfileFull, "Installing tools"},
+		{model.ProfileMCPOnly, "Configuring MCP servers"},
+		{model.ProfileDotfilesOnly, "Deploying dotfiles"},
+		{model.SetupProfile("unknown"), "Setting up"},
+	}
+	for _, tt := range tests {
+		view := RenderInstalling(tt.profile, nil, 0)
+		if !strings.Contains(view, tt.contains) {
+			t.Fatalf("profile %q: expected %q in view", tt.profile, tt.contains)
+		}
 	}
 }
 
@@ -313,12 +334,36 @@ func TestRenderComplete_WithRollback(t *testing.T) {
 		Rollback: &pipeline.StageResult{
 			Steps: []pipeline.StepResult{
 				{StepID: "rollback-1", Status: pipeline.StatusRolledBack},
+				{StepID: "rollback-2", Status: pipeline.StatusFailed, Err: errors.New("restore error")},
 			},
 		},
 	}
 	view := RenderComplete(result)
 	if !strings.Contains(view, "Rollback") {
 		t.Fatal("should mention rollback")
+	}
+	if !strings.Contains(view, "rollback-1") {
+		t.Fatal("should show individual rollback step IDs")
+	}
+	if !strings.Contains(view, "rollback-2") {
+		t.Fatal("should show failed rollback step")
+	}
+	if !strings.Contains(view, "restore error") {
+		t.Fatal("should surface individual rollback errors")
+	}
+}
+
+func TestRenderComplete_WithRollbackNoSteps(t *testing.T) {
+	result := pipeline.ExecutionResult{
+		Err:      errors.New("failed"),
+		Rollback: &pipeline.StageResult{},
+	}
+	view := RenderComplete(result)
+	if !strings.Contains(view, "Rollback") {
+		t.Fatal("should mention rollback")
+	}
+	if !strings.Contains(view, "Original configs restored") {
+		t.Fatal("should show generic rollback message when no steps")
 	}
 }
 

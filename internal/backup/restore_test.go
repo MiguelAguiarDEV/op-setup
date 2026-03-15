@@ -182,3 +182,46 @@ func TestRestoreService_MultipleEntries(t *testing.T) {
 		t.Fatal("file3 should have been removed")
 	}
 }
+
+func TestRestoreService_EmptySnapshotPath_Existed_ReturnsError(t *testing.T) {
+	manifest := Manifest{
+		Entries: []ManifestEntry{
+			{
+				OriginalPath: "/tmp/test-restore-empty",
+				SnapshotPath: "",
+				Existed:      true,
+				Mode:         0o644,
+			},
+		},
+	}
+
+	rs := NewRestoreService()
+	err := rs.Restore(manifest)
+	if err == nil {
+		t.Fatal("expected error for empty snapshot path with Existed=true")
+	}
+}
+
+func TestRestoreService_UnwritableDestination(t *testing.T) {
+	homeDir := t.TempDir()
+	snapshotDir := filepath.Join(t.TempDir(), "backup")
+
+	original := filepath.Join(homeDir, "file.json")
+	os.WriteFile(original, []byte("data"), 0o644)
+
+	s := &Snapshotter{Now: fixedTime}
+	manifest, err := s.Create(snapshotDir, []string{original})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Make destination directory unwritable.
+	os.Chmod(homeDir, 0o000)
+	defer os.Chmod(homeDir, 0o755)
+
+	rs := NewRestoreService()
+	err = rs.Restore(manifest)
+	if err == nil {
+		t.Fatal("expected error when destination is unwritable")
+	}
+}

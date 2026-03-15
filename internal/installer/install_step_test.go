@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/MiguelAguiarDEV/op-setup/internal/model"
 )
@@ -91,7 +92,6 @@ func TestInstallStep_Run(t *testing.T) {
 			}
 			step := &InstallStep{
 				Installer: inst,
-				Ctx:       context.Background(),
 			}
 
 			err := step.Run()
@@ -109,7 +109,7 @@ func TestInstallStep_Run(t *testing.T) {
 	}
 }
 
-func TestInstallStep_Run_NilContext(t *testing.T) {
+func TestInstallStep_Run_ZeroTimeout(t *testing.T) {
 	inst := &mockInstaller{
 		id:           "test",
 		name:         "Test",
@@ -117,7 +117,25 @@ func TestInstallStep_Run_NilContext(t *testing.T) {
 	}
 	step := &InstallStep{
 		Installer: inst,
-		// Ctx is nil — should use context.Background()
+		// Timeout is zero — should use context.Background() (no deadline).
+	}
+	if err := step.Run(); err != nil {
+		t.Errorf("Run() error = %v", err)
+	}
+	if !step.Skipped() {
+		t.Error("Skipped() = false, want true")
+	}
+}
+
+func TestInstallStep_Run_WithTimeout(t *testing.T) {
+	inst := &mockInstaller{
+		id:           "test",
+		name:         "Test",
+		detectResult: true,
+	}
+	step := &InstallStep{
+		Installer: inst,
+		Timeout:   5 * time.Minute,
 	}
 	if err := step.Run(); err != nil {
 		t.Errorf("Run() error = %v", err)
@@ -163,7 +181,6 @@ func TestInstallStep_Rollback(t *testing.T) {
 			}
 			step := &InstallStep{
 				Installer: inst,
-				Ctx:       context.Background(),
 				installed: tt.installed,
 			}
 

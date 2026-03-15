@@ -94,7 +94,7 @@ func (m *JSONMerger) Merge(path string, key string, servers map[string]model.MCP
 	}
 	out = append(out, '\n')
 
-	if err := m.WriteFile(path, out, 0o644); err != nil {
+	if err := m.WriteFile(path, out, 0o600); err != nil {
 		return false, err
 	}
 

@@ -167,3 +167,104 @@ func TestSnapshotter_Create_MixedExistence(t *testing.T) {
 		t.Fatal("second entry should not exist")
 	}
 }
+
+func TestNewSnapshotter_DefaultNow(t *testing.T) {
+	s := NewSnapshotter()
+	if s.Now == nil {
+		t.Fatal("Now should not be nil")
+	}
+	// Verify it returns a reasonable time (not zero).
+	now := s.Now()
+	if now.IsZero() {
+		t.Fatal("Now() should return non-zero time")
+	}
+}
+
+func TestSnapshotter_Create_UnreadableSource(t *testing.T) {
+	homeDir := t.TempDir()
+	snapshotDir := filepath.Join(t.TempDir(), "backup")
+
+	// Create a file then make it unreadable.
+	file := filepath.Join(homeDir, "secret.json")
+	os.WriteFile(file, []byte("data"), 0o000)
+	defer os.Chmod(file, 0o644)
+
+	s := &Snapshotter{Now: fixedTime}
+	_, err := s.Create(snapshotDir, []string{file})
+	if err == nil {
+		t.Fatal("expected error for unreadable source file")
+	}
+}
+
+func TestReadManifest_MissingFile(t *testing.T) {
+	_, err := ReadManifest("/nonexistent/manifest.json")
+	if err == nil {
+		t.Fatal("expected error for missing manifest file")
+	}
+}
+
+func TestReadManifest_InvalidJSON(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "manifest.json")
+	os.WriteFile(path, []byte("not json"), 0o644)
+
+	_, err := ReadManifest(path)
+	if err == nil {
+		t.Fatal("expected error for invalid JSON")
+	}
+}
+
+func TestWriteManifest_CreatesParentDir(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "sub", "deep", "manifest.json")
+
+	m := Manifest{ID: "test", Entries: []ManifestEntry{}}
+	if err := WriteManifest(path, m); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Verify it was written.
+	got, err := ReadManifest(path)
+	if err != nil {
+		t.Fatalf("read back: %v", err)
+	}
+	if got.ID != "test" {
+		t.Fatalf("ID = %q, want %q", got.ID, "test")
+	}
+}
+
+func TestWriteManifest_RoundTrip(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "manifest.json")
+
+	original := Manifest{
+		ID:      "20260315-120000",
+		RootDir: dir,
+		Entries: []ManifestEntry{
+			{OriginalPath: "/home/user/.config/file.json", SnapshotPath: "/backup/0_file.json", Existed: true, Mode: 0o600},
+			{OriginalPath: "/home/user/.config/new.json", Existed: false},
+		},
+	}
+
+	if err := WriteManifest(path, original); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := ReadManifest(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if got.ID != original.ID {
+		t.Fatalf("ID = %q, want %q", got.ID, original.ID)
+	}
+	if len(got.Entries) != 2 {
+		t.Fatalf("entries = %d, want 2", len(got.Entries))
+	}
+	if got.Entries[0].Mode != 0o600 {
+		t.Fatalf("Mode = %o, want %o", got.Entries[0].Mode, 0o600)
+	}
+	if got.Entries[1].Existed {
+		t.Fatal("second entry should not exist")
+	}
+}

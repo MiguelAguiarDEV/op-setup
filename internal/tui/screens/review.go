@@ -4,19 +4,19 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/MiguelAguiarDEV/op-setup/internal/model"
 	"github.com/MiguelAguiarDEV/op-setup/internal/tui/styles"
 )
 
 // RenderReview renders the review screen before installation.
-// profileName is the human-readable profile name (e.g. "Full Setup").
-func RenderReview(profileName string, agents []string, components []string) string {
+func RenderReview(profile model.SetupProfile, agents []string, components []string) string {
 	var b strings.Builder
 
 	b.WriteString(RenderHeader("Review", "The following changes will be made"))
 	b.WriteString("\n")
 
 	b.WriteString(styles.SelectedStyle.Render("Profile:"))
-	b.WriteString(" " + profileName)
+	b.WriteString(" " + profile.Name())
 	b.WriteString("\n\n")
 
 	if len(agents) > 0 {
@@ -37,9 +37,9 @@ func RenderReview(profileName string, agents []string, components []string) stri
 		b.WriteString("\n")
 	}
 
-	// Show profile-specific info.
-	if len(agents) == 0 && len(components) == 0 {
-		b.WriteString(styles.UnselectedStyle.Render("Deploy agents, skills, scripts, and nvim config."))
+	// DotfilesOnly has no agents/components — show what it does.
+	if profile == model.ProfileDotfilesOnly {
+		b.WriteString(styles.UnselectedStyle.Render(profile.Description()))
 		b.WriteString("\n\n")
 	}
 

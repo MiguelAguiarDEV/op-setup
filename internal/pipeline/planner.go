@@ -1,7 +1,6 @@
 package pipeline
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -17,12 +16,16 @@ import (
 	"github.com/MiguelAguiarDEV/op-setup/internal/pipeline/steps"
 )
 
+// DefaultInstallTimeout is the per-installer timeout.
+const DefaultInstallTimeout = 5 * time.Minute
+
 // Planner builds a StagePlan from user selections and profile.
 type Planner struct {
 	Registry          *adapter.Registry
 	InstallerRegistry *installer.Registry
 	HomeDir           string
 	BackupRoot        string
+	InstallTimeout    time.Duration // Per-installer timeout. Zero uses DefaultInstallTimeout.
 }
 
 // NewPlanner creates a Planner with default backup root.
@@ -198,12 +201,18 @@ func (p *Planner) buildInstallSteps() []Step {
 	if p.InstallerRegistry == nil {
 		return nil
 	}
+
+	timeout := p.InstallTimeout
+	if timeout == 0 {
+		timeout = DefaultInstallTimeout
+	}
+
 	all := p.InstallerRegistry.All()
 	installSteps := make([]Step, len(all))
 	for i, inst := range all {
 		installSteps[i] = &installer.InstallStep{
 			Installer: inst,
-			Ctx:       context.Background(),
+			Timeout:   timeout,
 		}
 	}
 	return installSteps

@@ -4,15 +4,30 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/MiguelAguiarDEV/op-setup/internal/model"
 	"github.com/MiguelAguiarDEV/op-setup/internal/pipeline"
 	"github.com/MiguelAguiarDEV/op-setup/internal/tui/styles"
 )
 
+// installingSubtitle returns a profile-aware subtitle for the installing screen.
+func installingSubtitle(profile model.SetupProfile) string {
+	switch profile {
+	case model.ProfileFull:
+		return "Installing tools, deploying dotfiles, configuring MCP servers..."
+	case model.ProfileMCPOnly:
+		return "Configuring MCP servers..."
+	case model.ProfileDotfilesOnly:
+		return "Deploying dotfiles..."
+	default:
+		return "Setting up..."
+	}
+}
+
 // RenderInstalling renders the installation progress screen.
-func RenderInstalling(events []pipeline.ProgressEvent, total int) string {
+func RenderInstalling(profile model.SetupProfile, events []pipeline.ProgressEvent, total int) string {
 	var b strings.Builder
 
-	b.WriteString(RenderHeader("Installing", "Configuring MCP servers..."))
+	b.WriteString(RenderHeader("Installing", installingSubtitle(profile)))
 	b.WriteString("\n")
 
 	for _, e := range events {
