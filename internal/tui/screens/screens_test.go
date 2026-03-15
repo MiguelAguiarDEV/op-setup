@@ -107,10 +107,93 @@ func TestRenderComponents_WithItems(t *testing.T) {
 	}
 }
 
+// --- Profile screen tests ---
+
+func TestRenderProfile_ShowsAllProfiles(t *testing.T) {
+	items := []ProfileItem{
+		{Name: "Full Setup", Description: "Install tools, deploy dotfiles, and configure MCP servers"},
+		{Name: "MCP Servers Only", Description: "Only configure MCP servers"},
+		{Name: "Dotfiles Only", Description: "Only deploy dotfiles"},
+	}
+	view := RenderProfile(items, 0)
+	if !strings.Contains(view, "Full Setup") {
+		t.Fatal("should contain Full Setup")
+	}
+	if !strings.Contains(view, "MCP Servers Only") {
+		t.Fatal("should contain MCP Servers Only")
+	}
+	if !strings.Contains(view, "Dotfiles Only") {
+		t.Fatal("should contain Dotfiles Only")
+	}
+	if !strings.Contains(view, "Select Setup Profile") {
+		t.Fatal("should contain header")
+	}
+}
+
+func TestRenderProfile_CursorPosition(t *testing.T) {
+	items := []ProfileItem{
+		{Name: "A", Description: "desc A"},
+		{Name: "B", Description: "desc B"},
+	}
+	view0 := RenderProfile(items, 0)
+	view1 := RenderProfile(items, 1)
+	if view0 == view1 {
+		t.Fatal("cursor position should affect rendering")
+	}
+}
+
+func TestRenderProfile_Empty(t *testing.T) {
+	view := RenderProfile(nil, 0)
+	if view == "" {
+		t.Fatal("should render even with no items")
+	}
+}
+
+// --- SingleSelect tests ---
+
+func TestRenderSingleSelect_AllStates(t *testing.T) {
+	items := []SingleSelectItem{
+		{Label: "Selected", Description: "first item"},
+		{Label: "Unselected", Description: "second item"},
+		{Label: "NoDesc"},
+	}
+	view := RenderSingleSelect(items, 0)
+	if !strings.Contains(view, "Selected") {
+		t.Fatal("should contain selected item")
+	}
+	if !strings.Contains(view, "first item") {
+		t.Fatal("should contain description")
+	}
+	if !strings.Contains(view, "NoDesc") {
+		t.Fatal("should contain item without description")
+	}
+}
+
+func TestRenderSingleSelect_CursorHighlight(t *testing.T) {
+	items := []SingleSelectItem{
+		{Label: "A"},
+		{Label: "B"},
+	}
+	view0 := RenderSingleSelect(items, 0)
+	view1 := RenderSingleSelect(items, 1)
+	if view0 == view1 {
+		t.Fatal("cursor should affect rendering")
+	}
+}
+
+func TestRenderSingleSelect_Empty(t *testing.T) {
+	view := RenderSingleSelect(nil, 0)
+	if view != "" {
+		t.Fatalf("expected empty for nil items, got %q", view)
+	}
+}
+
+// --- Review screen tests ---
+
 func TestRenderReview_ShowsSelections(t *testing.T) {
 	agents := []string{"Claude Code", "OpenCode"}
 	components := []string{"Engram", "Context7"}
-	view := RenderReview(agents, components)
+	view := RenderReview("MCP Servers Only", agents, components)
 	if !strings.Contains(view, "Claude Code") {
 		t.Fatal("should contain agent name")
 	}
@@ -120,7 +203,37 @@ func TestRenderReview_ShowsSelections(t *testing.T) {
 	if !strings.Contains(view, "backed up") {
 		t.Fatal("should mention backup")
 	}
+	if !strings.Contains(view, "MCP Servers Only") {
+		t.Fatal("should contain profile name")
+	}
 }
+
+func TestRenderReview_DotfilesOnly(t *testing.T) {
+	view := RenderReview("Dotfiles Only", nil, nil)
+	if !strings.Contains(view, "Dotfiles Only") {
+		t.Fatal("should contain profile name")
+	}
+	if !strings.Contains(view, "Deploy agents") {
+		t.Fatal("should show dotfiles-specific info")
+	}
+}
+
+func TestRenderReview_Full(t *testing.T) {
+	agents := []string{"Claude Code"}
+	components := []string{"Engram"}
+	view := RenderReview("Full Setup", agents, components)
+	if !strings.Contains(view, "Full Setup") {
+		t.Fatal("should contain profile name")
+	}
+	if !strings.Contains(view, "AI Tools") {
+		t.Fatal("should contain AI Tools section")
+	}
+	if !strings.Contains(view, "MCP Servers") {
+		t.Fatal("should contain MCP Servers section")
+	}
+}
+
+// --- Installing screen tests ---
 
 func TestRenderInstalling_NoEvents(t *testing.T) {
 	view := RenderInstalling(nil, 0)
@@ -155,6 +268,8 @@ func TestRenderInstalling_WithProgressBar(t *testing.T) {
 		t.Fatal("should show progress count")
 	}
 }
+
+// --- Complete screen tests ---
 
 func TestRenderComplete_Success(t *testing.T) {
 	result := pipeline.ExecutionResult{
@@ -214,6 +329,78 @@ func TestRenderComplete_EmptySteps(t *testing.T) {
 		t.Fatal("should render even with empty result")
 	}
 }
+
+func TestRenderComplete_WithInstallSteps(t *testing.T) {
+	result := pipeline.ExecutionResult{
+		Install: pipeline.StageResult{
+			Steps: []pipeline.StepResult{
+				{StepID: "install-opencode", Status: pipeline.StatusSucceeded},
+				{StepID: "install-engram", Status: pipeline.StatusSucceeded},
+			},
+			Success: true,
+		},
+	}
+	view := RenderComplete(result)
+	if !strings.Contains(view, "Tools Installed") {
+		t.Fatal("should show install section header")
+	}
+	if !strings.Contains(view, "install-opencode") {
+		t.Fatal("should show install step results")
+	}
+}
+
+func TestRenderComplete_WithDeploySteps(t *testing.T) {
+	result := pipeline.ExecutionResult{
+		Deploy: pipeline.StageResult{
+			Steps: []pipeline.StepResult{
+				{StepID: "deploy-dotfiles", Status: pipeline.StatusSucceeded},
+			},
+			Success: true,
+		},
+	}
+	view := RenderComplete(result)
+	if !strings.Contains(view, "Dotfiles Deployed") {
+		t.Fatal("should show deploy section header")
+	}
+	if !strings.Contains(view, "deploy-dotfiles") {
+		t.Fatal("should show deploy step results")
+	}
+}
+
+func TestRenderComplete_AllStages(t *testing.T) {
+	result := pipeline.ExecutionResult{
+		Install: pipeline.StageResult{
+			Steps: []pipeline.StepResult{
+				{StepID: "install-opencode", Status: pipeline.StatusSucceeded},
+			},
+			Success: true,
+		},
+		Deploy: pipeline.StageResult{
+			Steps: []pipeline.StepResult{
+				{StepID: "deploy-dotfiles", Status: pipeline.StatusSucceeded},
+			},
+			Success: true,
+		},
+		Apply: pipeline.StageResult{
+			Steps: []pipeline.StepResult{
+				{StepID: "inject-claude-engram", Status: pipeline.StatusSucceeded},
+			},
+			Success: true,
+		},
+	}
+	view := RenderComplete(result)
+	if !strings.Contains(view, "Tools Installed") {
+		t.Fatal("should show install section")
+	}
+	if !strings.Contains(view, "Dotfiles Deployed") {
+		t.Fatal("should show deploy section")
+	}
+	if !strings.Contains(view, "MCP Servers Configured") {
+		t.Fatal("should show apply section")
+	}
+}
+
+// --- Common helpers ---
 
 func TestRenderHeader_WithSubtitle(t *testing.T) {
 	view := RenderHeader("Title", "Subtitle")

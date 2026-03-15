@@ -5,6 +5,7 @@ type Screen int
 
 const (
 	ScreenWelcome Screen = iota
+	ScreenProfile
 	ScreenDetection
 	ScreenAgents
 	ScreenComponents

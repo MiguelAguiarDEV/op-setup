@@ -14,43 +14,44 @@ func RenderComplete(result pipeline.ExecutionResult) string {
 
 	if result.Err == nil {
 		b.WriteString(RenderHeader(
-			styles.SuccessStyle.Render("Installation Complete!"),
-			"All MCP servers have been configured successfully.",
+			styles.SuccessStyle.Render("Setup Complete!"),
+			"All stages completed successfully.",
 		))
 	} else {
 		b.WriteString(RenderHeader(
-			styles.ErrorStyle.Render("Installation Failed"),
+			styles.ErrorStyle.Render("Setup Failed"),
 			result.Err.Error(),
 		))
 	}
 
 	b.WriteString("\n")
 
-	// Show step results.
-	if len(result.Apply.Steps) > 0 {
-		b.WriteString(styles.SelectedStyle.Render("Results:"))
+	// Show Install stage results.
+	if len(result.Install.Steps) > 0 {
+		b.WriteString(styles.SelectedStyle.Render("Tools Installed:"))
 		b.WriteString("\n")
-		for _, sr := range result.Apply.Steps {
-			var icon string
-			switch sr.Status {
-			case pipeline.StatusSucceeded:
-				icon = styles.CheckMark
-			case pipeline.StatusFailed:
-				icon = styles.CrossMark
-			default:
-				icon = " "
-			}
-			line := fmt.Sprintf("  %s %s", icon, sr.StepID)
-			if sr.Err != nil {
-				line += " " + styles.ErrorStyle.Render("— "+sr.Err.Error())
-			}
-			b.WriteString(line + "\n")
-		}
+		renderStepResults(&b, result.Install.Steps)
+		b.WriteString("\n")
+	}
+
+	// Show Deploy stage results.
+	if len(result.Deploy.Steps) > 0 {
+		b.WriteString(styles.SelectedStyle.Render("Dotfiles Deployed:"))
+		b.WriteString("\n")
+		renderStepResults(&b, result.Deploy.Steps)
+		b.WriteString("\n")
+	}
+
+	// Show Apply stage results.
+	if len(result.Apply.Steps) > 0 {
+		b.WriteString(styles.SelectedStyle.Render("MCP Servers Configured:"))
+		b.WriteString("\n")
+		renderStepResults(&b, result.Apply.Steps)
+		b.WriteString("\n")
 	}
 
 	// Show rollback info if applicable.
 	if result.Rollback != nil {
-		b.WriteString("\n")
 		b.WriteString(styles.WarningStyle.Render("Rollback was executed — original configs restored."))
 		b.WriteString("\n")
 	}
@@ -59,4 +60,24 @@ func RenderComplete(result pipeline.ExecutionResult) string {
 	b.WriteString(RenderFooter("Press q to quit"))
 
 	return b.String()
+}
+
+// renderStepResults writes step results to the builder.
+func renderStepResults(b *strings.Builder, steps []pipeline.StepResult) {
+	for _, sr := range steps {
+		var icon string
+		switch sr.Status {
+		case pipeline.StatusSucceeded:
+			icon = styles.CheckMark
+		case pipeline.StatusFailed:
+			icon = styles.CrossMark
+		default:
+			icon = " "
+		}
+		line := fmt.Sprintf("  %s %s", icon, sr.StepID)
+		if sr.Err != nil {
+			line += " " + styles.ErrorStyle.Render("— "+sr.Err.Error())
+		}
+		b.WriteString(line + "\n")
+	}
 }

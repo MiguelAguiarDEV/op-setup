@@ -5,6 +5,7 @@ import (
 
 	"github.com/MiguelAguiarDEV/op-setup/internal/adapter"
 	"github.com/MiguelAguiarDEV/op-setup/internal/component"
+	"github.com/MiguelAguiarDEV/op-setup/internal/installer"
 	"github.com/MiguelAguiarDEV/op-setup/internal/model"
 	"github.com/MiguelAguiarDEV/op-setup/internal/pipeline"
 	"github.com/MiguelAguiarDEV/op-setup/internal/tui/screens"
@@ -23,6 +24,25 @@ type progressMsg struct {
 	event pipeline.ProgressEvent
 }
 
+type totalStepsMsg struct {
+	count int
+}
+
+// ProgramRef holds a reference to the tea.Program for sending messages
+// from goroutines. The pointer indirection allows the Model (value type)
+// and app.go to share the same reference.
+type ProgramRef struct {
+	P *tea.Program
+}
+
+// Send sends a message to the program if the reference is set.
+// Safe to call when P is nil (no-op).
+func (r *ProgramRef) Send(msg tea.Msg) {
+	if r != nil && r.P != nil {
+		r.P.Send(msg)
+	}
+}
+
 // Model is the main bubbletea model.
 type Model struct {
 	screen  Screen
@@ -30,7 +50,13 @@ type Model struct {
 	homeDir string
 
 	// Dependencies
-	registry *adapter.Registry
+	registry          *adapter.Registry
+	installerRegistry *installer.Registry
+	programRef        *ProgramRef
+
+	// Profile selection
+	profile      model.SetupProfile
+	profileItems []model.SetupProfile
 
 	// Detection
 	detected map[model.AgentID]model.DetectResult
@@ -61,7 +87,7 @@ type componentEntry struct {
 }
 
 // NewModel creates the TUI model.
-func NewModel(registry *adapter.Registry, version string, homeDir string) Model {
+func NewModel(registry *adapter.Registry, installerReg *installer.Registry, programRef *ProgramRef, version string, homeDir string) Model {
 	// Build agent entries.
 	allAdapters := registry.All()
 	agents := make([]agentEntry, len(allAdapters))
@@ -77,13 +103,16 @@ func NewModel(registry *adapter.Registry, version string, homeDir string) Model 
 	}
 
 	return Model{
-		screen:     ScreenWelcome,
-		version:    version,
-		homeDir:    homeDir,
-		registry:   registry,
-		detected:   make(map[model.AgentID]model.DetectResult),
-		agents:     agents,
-		components: comps,
+		screen:            ScreenWelcome,
+		version:           version,
+		homeDir:           homeDir,
+		registry:          registry,
+		installerRegistry: installerReg,
+		programRef:        programRef,
+		profileItems:      model.AllProfiles(),
+		detected:          make(map[model.AgentID]model.DetectResult),
+		agents:            agents,
+		components:        comps,
 	}
 }
 
@@ -109,6 +138,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case progressMsg:
 		m.progressEvents = append(m.progressEvents, msg.event)
 		return m, nil
+	case totalStepsMsg:
+		m.totalSteps = msg.count
+		return m, nil
 	case installDoneMsg:
 		m.result = &msg.result
 		m.screen = ScreenComplete
@@ -130,11 +162,7 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.handleEnter()
 
 	case "esc":
-		if prev, ok := PreviousScreen(m.screen); ok {
-			m.screen = prev
-			m.cursor = 0
-		}
-		return m, nil
+		return m.handleEsc()
 
 	case "up", "k":
 		if m.cursor > 0 {
@@ -159,6 +187,20 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 func (m Model) handleEnter() (tea.Model, tea.Cmd) {
 	switch m.screen {
 	case ScreenWelcome:
+		m.screen = ScreenProfile
+		m.cursor = 0
+		return m, nil
+
+	case ScreenProfile:
+		if m.cursor < len(m.profileItems) {
+			m.profile = m.profileItems[m.cursor]
+		}
+		if m.profile == model.ProfileDotfilesOnly {
+			// Skip detection, agents, components — go straight to review.
+			m.screen = ScreenReview
+			m.cursor = 0
+			return m, nil
+		}
 		m.screen = ScreenDetection
 		m.cursor = 0
 		return m, m.detectCmd()
@@ -211,6 +253,27 @@ func (m Model) handleEnter() (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+func (m Model) handleEsc() (tea.Model, tea.Cmd) {
+	switch m.screen {
+	case ScreenWelcome, ScreenInstalling, ScreenComplete:
+		return m, nil // Can't go back.
+	case ScreenReview:
+		if m.profile == model.ProfileDotfilesOnly {
+			m.screen = ScreenProfile
+		} else {
+			m.screen = ScreenComponents
+		}
+		m.cursor = 0
+		return m, nil
+	default:
+		if prev, ok := PreviousScreen(m.screen); ok {
+			m.screen = prev
+			m.cursor = 0
+		}
+		return m, nil
+	}
+}
+
 func (m Model) handleSpace() (tea.Model, tea.Cmd) {
 	switch m.screen {
 	case ScreenAgents:
@@ -227,6 +290,8 @@ func (m Model) handleSpace() (tea.Model, tea.Cmd) {
 
 func (m Model) maxCursor() int {
 	switch m.screen {
+	case ScreenProfile:
+		return len(m.profileItems) - 1
 	case ScreenAgents:
 		return len(m.agents) - 1
 	case ScreenComponents:
@@ -263,16 +328,35 @@ func (m Model) installCmd() tea.Cmd {
 
 	homeDir := m.homeDir
 	registry := m.registry
+	installerReg := m.installerRegistry
+	profile := m.profile
+	ref := m.programRef
 
 	return func() tea.Msg {
 		planner := pipeline.NewPlanner(registry, homeDir)
-		plan, err := planner.Plan(selectedAgents, selectedComponents)
+		if profile == model.ProfileFull && installerReg != nil {
+			planner.InstallerRegistry = installerReg
+		}
+
+		var plan pipeline.StagePlan
+		var err error
+
+		switch profile {
+		case model.ProfileDotfilesOnly:
+			plan, err = planner.Plan(profile, nil, nil)
+		default:
+			plan, err = planner.Plan(profile, selectedAgents, selectedComponents)
+		}
+
 		if err != nil {
 			return installDoneMsg{result: pipeline.ExecutionResult{Err: err}}
 		}
 
+		// Send total step count for progress bar.
+		ref.Send(totalStepsMsg{count: plan.TotalSteps()})
+
 		orchestrator := pipeline.NewOrchestrator(func(e pipeline.ProgressEvent) {
-			// TODO: Wire progress events to TUI via p.Send() for live updates.
+			ref.Send(progressMsg{event: e})
 		})
 
 		result := orchestrator.Execute(plan)
@@ -284,6 +368,16 @@ func (m Model) View() string {
 	switch m.screen {
 	case ScreenWelcome:
 		return screens.RenderWelcome(m.version)
+
+	case ScreenProfile:
+		items := make([]screens.ProfileItem, len(m.profileItems))
+		for i, p := range m.profileItems {
+			items[i] = screens.ProfileItem{
+				Name:        p.Name(),
+				Description: p.Description(),
+			}
+		}
+		return screens.RenderProfile(items, m.cursor)
 
 	case ScreenDetection:
 		items := make([]screens.DetectionItem, len(m.agents))
@@ -333,7 +427,7 @@ func (m Model) View() string {
 				compNames = append(compNames, c.component.Name)
 			}
 		}
-		return screens.RenderReview(agentNames, compNames)
+		return screens.RenderReview(m.profile.Name(), agentNames, compNames)
 
 	case ScreenInstalling:
 		return screens.RenderInstalling(m.progressEvents, m.totalSteps)

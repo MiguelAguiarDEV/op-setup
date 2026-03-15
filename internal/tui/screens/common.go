@@ -34,6 +34,39 @@ func RenderFooter(help string) string {
 	return styles.HelpStyle.Render(help)
 }
 
+// SingleSelectItem represents an item in a single-select list.
+type SingleSelectItem struct {
+	Label       string
+	Description string
+}
+
+// RenderSingleSelect renders a single-select list with cursor highlight.
+func RenderSingleSelect(items []SingleSelectItem, cursor int) string {
+	var b strings.Builder
+
+	for i, item := range items {
+		prefix := "  "
+		if i == cursor {
+			prefix = styles.Cursor
+		}
+
+		label := item.Label
+		if i == cursor {
+			label = styles.SelectedStyle.Render(label)
+		} else {
+			label = styles.UnselectedStyle.Render(label)
+		}
+
+		b.WriteString(fmt.Sprintf("%s%s", prefix, label))
+		if item.Description != "" {
+			b.WriteString(" " + styles.SubtitleStyle.Render("— "+item.Description))
+		}
+		b.WriteString("\n")
+	}
+
+	return b.String()
+}
+
 // RenderMultiSelect renders a multi-select list with cursor.
 func RenderMultiSelect(items []SelectItem, cursor int) string {
 	var b strings.Builder

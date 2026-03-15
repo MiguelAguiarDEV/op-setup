@@ -16,7 +16,7 @@ func newTestModel(t *testing.T) Model {
 	if err != nil {
 		t.Fatal(err)
 	}
-	return NewModel(registry, "test", "/home/test")
+	return NewModel(registry, nil, nil, "test", "/home/test")
 }
 
 func TestNewModel_InitialState(t *testing.T) {
@@ -39,6 +39,10 @@ func TestNewModel_InitialState(t *testing.T) {
 		if !c.selected {
 			t.Fatalf("component %q should be selected by default", c.component.ID)
 		}
+	}
+	// Profile items populated.
+	if len(m.profileItems) != 3 {
+		t.Fatalf("expected 3 profile items, got %d", len(m.profileItems))
 	}
 }
 
@@ -75,16 +79,75 @@ func TestModel_Quit_OnCtrlC(t *testing.T) {
 	}
 }
 
-func TestModel_Enter_WelcomeToDetection(t *testing.T) {
+// --- Profile selection flow ---
+
+func TestModel_Enter_WelcomeToProfile(t *testing.T) {
 	m := newTestModel(t)
+	updated, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	um := updated.(Model)
+
+	if um.screen != ScreenProfile {
+		t.Fatalf("screen = %d, want %d", um.screen, ScreenProfile)
+	}
+	if cmd != nil {
+		t.Fatal("welcome→profile should not produce a command")
+	}
+}
+
+func TestModel_Enter_ProfileToDetection_MCPOnly(t *testing.T) {
+	m := newTestModel(t)
+	m.screen = ScreenProfile
+	m.cursor = 1 // MCPOnly is second item.
+
 	updated, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	um := updated.(Model)
 
 	if um.screen != ScreenDetection {
 		t.Fatalf("screen = %d, want %d", um.screen, ScreenDetection)
 	}
+	if um.profile != model.ProfileMCPOnly {
+		t.Fatalf("profile = %q, want %q", um.profile, model.ProfileMCPOnly)
+	}
 	if cmd == nil {
-		t.Fatal("should return detect command")
+		t.Fatal("profile→detection should produce detect command")
+	}
+}
+
+func TestModel_Enter_ProfileToDetection_Full(t *testing.T) {
+	m := newTestModel(t)
+	m.screen = ScreenProfile
+	m.cursor = 0 // Full is first item.
+
+	updated, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	um := updated.(Model)
+
+	if um.screen != ScreenDetection {
+		t.Fatalf("screen = %d, want %d", um.screen, ScreenDetection)
+	}
+	if um.profile != model.ProfileFull {
+		t.Fatalf("profile = %q, want %q", um.profile, model.ProfileFull)
+	}
+	if cmd == nil {
+		t.Fatal("profile→detection should produce detect command")
+	}
+}
+
+func TestModel_Enter_ProfileToReview_DotfilesOnly(t *testing.T) {
+	m := newTestModel(t)
+	m.screen = ScreenProfile
+	m.cursor = 2 // DotfilesOnly is third item.
+
+	updated, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	um := updated.(Model)
+
+	if um.screen != ScreenReview {
+		t.Fatalf("screen = %d, want %d (should skip to review)", um.screen, ScreenReview)
+	}
+	if um.profile != model.ProfileDotfilesOnly {
+		t.Fatalf("profile = %q, want %q", um.profile, model.ProfileDotfilesOnly)
+	}
+	if cmd != nil {
+		t.Fatal("profile→review (dotfiles) should not produce a command")
 	}
 }
 
@@ -157,7 +220,33 @@ func TestModel_Space_TogglesSelection(t *testing.T) {
 	}
 }
 
-func TestModel_Esc_GoesBack(t *testing.T) {
+// --- Esc behavior ---
+
+func TestModel_Esc_FromProfile(t *testing.T) {
+	m := newTestModel(t)
+	m.screen = ScreenProfile
+
+	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	um := updated.(Model)
+
+	if um.screen != ScreenWelcome {
+		t.Fatalf("screen = %d, want %d", um.screen, ScreenWelcome)
+	}
+}
+
+func TestModel_Esc_FromDetection(t *testing.T) {
+	m := newTestModel(t)
+	m.screen = ScreenDetection
+
+	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	um := updated.(Model)
+
+	if um.screen != ScreenProfile {
+		t.Fatalf("screen = %d, want %d", um.screen, ScreenProfile)
+	}
+}
+
+func TestModel_Esc_FromAgents(t *testing.T) {
 	m := newTestModel(t)
 	m.screen = ScreenAgents
 
@@ -166,6 +255,44 @@ func TestModel_Esc_GoesBack(t *testing.T) {
 
 	if um.screen != ScreenDetection {
 		t.Fatalf("screen = %d, want %d", um.screen, ScreenDetection)
+	}
+}
+
+func TestModel_Esc_FromComponents(t *testing.T) {
+	m := newTestModel(t)
+	m.screen = ScreenComponents
+
+	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	um := updated.(Model)
+
+	if um.screen != ScreenAgents {
+		t.Fatalf("screen = %d, want %d", um.screen, ScreenAgents)
+	}
+}
+
+func TestModel_Esc_FromReview_MCPOnly(t *testing.T) {
+	m := newTestModel(t)
+	m.screen = ScreenReview
+	m.profile = model.ProfileMCPOnly
+
+	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	um := updated.(Model)
+
+	if um.screen != ScreenComponents {
+		t.Fatalf("screen = %d, want %d", um.screen, ScreenComponents)
+	}
+}
+
+func TestModel_Esc_FromReview_DotfilesOnly(t *testing.T) {
+	m := newTestModel(t)
+	m.screen = ScreenReview
+	m.profile = model.ProfileDotfilesOnly
+
+	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	um := updated.(Model)
+
+	if um.screen != ScreenProfile {
+		t.Fatalf("screen = %d, want %d (should go back to profile)", um.screen, ScreenProfile)
 	}
 }
 
@@ -178,6 +305,19 @@ func TestModel_Esc_WelcomeStays(t *testing.T) {
 
 	if um.screen != ScreenWelcome {
 		t.Fatalf("screen = %d, want %d (should stay)", um.screen, ScreenWelcome)
+	}
+}
+
+func TestModel_Esc_ResetsCursor(t *testing.T) {
+	m := newTestModel(t)
+	m.screen = ScreenAgents
+	m.cursor = 3
+
+	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	um := updated.(Model)
+
+	if um.cursor != 0 {
+		t.Fatalf("cursor = %d, want 0 (should reset on esc)", um.cursor)
 	}
 }
 
@@ -199,6 +339,7 @@ func TestModel_View_AllScreens(t *testing.T) {
 
 	allScreens := []Screen{
 		ScreenWelcome,
+		ScreenProfile,
 		ScreenDetection,
 		ScreenAgents,
 		ScreenComponents,
@@ -213,6 +354,16 @@ func TestModel_View_AllScreens(t *testing.T) {
 		if view == "" && s != ScreenComplete {
 			t.Fatalf("view for screen %d should not be empty", s)
 		}
+	}
+}
+
+func TestModel_View_Profile(t *testing.T) {
+	m := newTestModel(t)
+	m.screen = ScreenProfile
+
+	view := m.View()
+	if view == "" {
+		t.Fatal("profile view should not be empty")
 	}
 }
 
@@ -296,6 +447,7 @@ func TestModel_Enter_ComponentsBlocked_NoSelection(t *testing.T) {
 func TestModel_Enter_ReviewToInstalling(t *testing.T) {
 	m := newTestModel(t)
 	m.screen = ScreenReview
+	m.profile = model.ProfileMCPOnly
 	// Need at least one agent selected for installCmd.
 	m.agents[0].detected = true
 	m.agents[0].selected = true
@@ -369,6 +521,15 @@ func TestModel_Navigation_CantExceedMax(t *testing.T) {
 	}
 }
 
+func TestModel_MaxCursor_Profile(t *testing.T) {
+	m := newTestModel(t)
+	m.screen = ScreenProfile
+	max := m.maxCursor()
+	if max != 2 {
+		t.Fatalf("maxCursor for profile = %d, want 2", max)
+	}
+}
+
 func TestModel_MaxCursor_Components(t *testing.T) {
 	m := newTestModel(t)
 	m.screen = ScreenComponents
@@ -426,6 +587,20 @@ func TestModel_ProgressMsg_AppendsEvent(t *testing.T) {
 	}
 	if um.progressEvents[0].StepID != "test-step" {
 		t.Fatalf("step ID = %q, want %q", um.progressEvents[0].StepID, "test-step")
+	}
+}
+
+// --- Total steps message ---
+
+func TestModel_TotalStepsMsg_SetsTotalSteps(t *testing.T) {
+	m := newTestModel(t)
+	m.screen = ScreenInstalling
+
+	updated, _ := m.Update(totalStepsMsg{count: 7})
+	um := updated.(Model)
+
+	if um.totalSteps != 7 {
+		t.Fatalf("totalSteps = %d, want 7", um.totalSteps)
 	}
 }
 
@@ -488,41 +663,56 @@ func TestModel_UnknownMsg_NoOp(t *testing.T) {
 	}
 }
 
-// --- Esc from various screens ---
+// --- Profile navigation ---
 
-func TestModel_Esc_FromComponents(t *testing.T) {
+func TestModel_Navigation_ProfileUpDown(t *testing.T) {
 	m := newTestModel(t)
-	m.screen = ScreenComponents
+	m.screen = ScreenProfile
 
-	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	// Move down.
+	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'j'}})
 	um := updated.(Model)
+	if um.cursor != 1 {
+		t.Fatalf("cursor = %d, want 1", um.cursor)
+	}
 
-	if um.screen != ScreenAgents {
-		t.Fatalf("screen = %d, want %d", um.screen, ScreenAgents)
+	// Move down again.
+	updated, _ = um.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'j'}})
+	um = updated.(Model)
+	if um.cursor != 2 {
+		t.Fatalf("cursor = %d, want 2", um.cursor)
+	}
+
+	// Can't go past max.
+	updated, _ = um.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'j'}})
+	um = updated.(Model)
+	if um.cursor != 2 {
+		t.Fatalf("cursor = %d, want 2 (should not exceed max)", um.cursor)
 	}
 }
 
-func TestModel_Esc_FromReview(t *testing.T) {
+// --- Esc from installing/complete stays ---
+
+func TestModel_Esc_FromInstalling_Stays(t *testing.T) {
 	m := newTestModel(t)
-	m.screen = ScreenReview
+	m.screen = ScreenInstalling
 
 	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyEsc})
 	um := updated.(Model)
 
-	if um.screen != ScreenComponents {
-		t.Fatalf("screen = %d, want %d", um.screen, ScreenComponents)
+	if um.screen != ScreenInstalling {
+		t.Fatalf("screen = %d, want %d (should stay)", um.screen, ScreenInstalling)
 	}
 }
 
-func TestModel_Esc_ResetssCursor(t *testing.T) {
+func TestModel_Esc_FromComplete_Stays(t *testing.T) {
 	m := newTestModel(t)
-	m.screen = ScreenAgents
-	m.cursor = 3
+	m.screen = ScreenComplete
 
 	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyEsc})
 	um := updated.(Model)
 
-	if um.cursor != 0 {
-		t.Fatalf("cursor = %d, want 0 (should reset on esc)", um.cursor)
+	if um.screen != ScreenComplete {
+		t.Fatalf("screen = %d, want %d (should stay)", um.screen, ScreenComplete)
 	}
 }

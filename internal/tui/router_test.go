@@ -8,7 +8,8 @@ func TestNextScreen(t *testing.T) {
 		want Screen
 		ok   bool
 	}{
-		{ScreenWelcome, ScreenDetection, true},
+		{ScreenWelcome, ScreenProfile, true},
+		{ScreenProfile, ScreenDetection, true},
 		{ScreenDetection, ScreenAgents, true},
 		{ScreenAgents, ScreenComponents, true},
 		{ScreenComponents, ScreenReview, true},
@@ -32,7 +33,8 @@ func TestPreviousScreen(t *testing.T) {
 		ok   bool
 	}{
 		{ScreenWelcome, ScreenWelcome, false},
-		{ScreenDetection, ScreenWelcome, true},
+		{ScreenProfile, ScreenWelcome, true},
+		{ScreenDetection, ScreenProfile, true},
 		{ScreenAgents, ScreenDetection, true},
 		{ScreenComponents, ScreenAgents, true},
 		{ScreenReview, ScreenComponents, true},

@@ -3,11 +3,13 @@ package app
 
 import (
 	"fmt"
+	"log"
 	"os"
 
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/MiguelAguiarDEV/op-setup/internal/adapter"
+	"github.com/MiguelAguiarDEV/op-setup/internal/installer"
 	"github.com/MiguelAguiarDEV/op-setup/internal/tui"
 )
 
@@ -26,8 +28,21 @@ func Run() error {
 		return fmt.Errorf("create adapter registry: %w", err)
 	}
 
-	m := tui.NewModel(registry, Version, homeDir)
+	// Create installer registry. Non-fatal if it fails — ProfileFull
+	// will simply have no install steps.
+	installerReg, err := installer.NewDefaultRegistry(homeDir)
+	if err != nil {
+		log.Printf("warning: installer registry unavailable: %v", err)
+		installerReg = nil
+	}
+
+	// ProgramRef allows the model to send messages from goroutines.
+	// The reference is set after tea.NewProgram() creates the program.
+	ref := &tui.ProgramRef{}
+
+	m := tui.NewModel(registry, installerReg, ref, Version, homeDir)
 	p := tea.NewProgram(m, tea.WithAltScreen())
+	ref.P = p
 
 	if _, err := p.Run(); err != nil {
 		return fmt.Errorf("run TUI: %w", err)
