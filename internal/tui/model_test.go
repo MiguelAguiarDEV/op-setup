@@ -34,10 +34,14 @@ func TestNewModel_InitialState(t *testing.T) {
 	if len(m.components) != 5 {
 		t.Fatalf("expected 5 components, got %d", len(m.components))
 	}
-	// All components selected by default.
+	// Components selected by default only if env vars are satisfied.
 	for _, c := range m.components {
-		if !c.selected {
-			t.Fatalf("component %q should be selected by default", c.component.ID)
+		envOK := componentEnvSatisfied(c.component)
+		if envOK && !c.selected {
+			t.Fatalf("component %q should be selected (env vars satisfied)", c.component.ID)
+		}
+		if !envOK && c.selected {
+			t.Fatalf("component %q should NOT be selected (missing env vars)", c.component.ID)
 		}
 	}
 	// Profile items populated.
@@ -217,6 +221,66 @@ func TestModel_Space_TogglesSelection(t *testing.T) {
 
 	if um.components[0].selected == initial {
 		t.Fatal("space should toggle selection")
+	}
+}
+
+func TestModel_Space_BlocksMissingEnvVar(t *testing.T) {
+	m := newTestModel(t)
+	m.screen = ScreenComponents
+
+	// Find the GitHub MCP component (has GITHUB_MCP_PAT env var).
+	ghIdx := -1
+	for i, c := range m.components {
+		if c.component.ID == model.ComponentGitHubMCP {
+			ghIdx = i
+			break
+		}
+	}
+	if ghIdx == -1 {
+		t.Fatal("GitHub MCP component not found")
+	}
+
+	// Ensure env var is unset.
+	t.Setenv("GITHUB_MCP_PAT", "")
+
+	m.cursor = ghIdx
+	initial := m.components[ghIdx].selected
+
+	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{' '}})
+	um := updated.(Model)
+
+	if um.components[ghIdx].selected != initial {
+		t.Fatal("space should NOT toggle component with missing env var")
+	}
+}
+
+func TestModel_Space_AllowsWithEnvVar(t *testing.T) {
+	m := newTestModel(t)
+	m.screen = ScreenComponents
+
+	// Find the GitHub MCP component.
+	ghIdx := -1
+	for i, c := range m.components {
+		if c.component.ID == model.ComponentGitHubMCP {
+			ghIdx = i
+			break
+		}
+	}
+	if ghIdx == -1 {
+		t.Fatal("GitHub MCP component not found")
+	}
+
+	// Set the env var.
+	t.Setenv("GITHUB_MCP_PAT", "test-token")
+
+	m.cursor = ghIdx
+	initial := m.components[ghIdx].selected
+
+	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{' '}})
+	um := updated.(Model)
+
+	if um.components[ghIdx].selected == initial {
+		t.Fatal("space should toggle component when env var is set")
 	}
 }
 

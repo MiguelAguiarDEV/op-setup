@@ -86,7 +86,7 @@ func (a *Adapter) PostInject(homeDir string, components []model.ComponentID) err
 			}
 			out, _ := json.MarshalIndent(cfg, "", "  ")
 			out = append(out, '\n')
-			return a.WriteFile(cfgPath, out, 0o644)
+			return a.WriteFile(cfgPath, out, 0o600)
 		}
 		return err
 	}
@@ -119,5 +119,5 @@ func (a *Adapter) PostInject(homeDir string, components []model.ComponentID) err
 		return err
 	}
 	out = append(out, '\n')
-	return a.WriteFile(cfgPath, out, 0o644)
+	return a.WriteFile(cfgPath, out, 0o600)
 }

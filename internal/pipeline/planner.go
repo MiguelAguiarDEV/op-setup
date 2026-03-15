@@ -84,7 +84,7 @@ func (p *Planner) planFull(
 	}
 
 	// --- Prepare ---
-	prepareSteps, backupStep, err := p.buildPrepareSteps(agents, components, timestamp)
+	prepareSteps, backupStep, err := p.buildPrepareSteps(agents, components, timestamp, true)
 	if err != nil {
 		return plan, err
 	}
@@ -122,7 +122,7 @@ func (p *Planner) planMCPOnly(
 		return plan, fmt.Errorf("no components selected")
 	}
 
-	prepareSteps, backupStep, err := p.buildPrepareSteps(agents, components, timestamp)
+	prepareSteps, backupStep, err := p.buildPrepareSteps(agents, components, timestamp, false)
 	if err != nil {
 		return plan, err
 	}
@@ -150,10 +150,13 @@ func (p *Planner) planDotfilesOnly(timestamp string) (StagePlan, error) {
 }
 
 // buildPrepareSteps creates ValidateStep + BackupStep.
+// If checkInstallerPrereqs is true and InstallerRegistry is set,
+// installer prerequisites are added to the validation checks.
 func (p *Planner) buildPrepareSteps(
 	agents []model.AgentID,
 	components []model.ComponentID,
 	timestamp string,
+	checkInstallerPrereqs bool,
 ) ([]Step, *steps.BackupStep, error) {
 	adapters, err := p.resolveAdapters(agents)
 	if err != nil {
@@ -178,6 +181,22 @@ func (p *Planner) buildPrepareSteps(
 					Required: false,
 					Message:  fmt.Sprintf("required by %s", comp.Name),
 				})
+			}
+		}
+	}
+
+	// Add installer prerequisite checks.
+	if checkInstallerPrereqs && p.InstallerRegistry != nil {
+		for _, inst := range p.InstallerRegistry.All() {
+			for _, prereq := range inst.Prerequisites() {
+				if !seenBinaries[prereq] {
+					seenBinaries[prereq] = true
+					depChecks = append(depChecks, steps.DependencyCheck{
+						Binary:   prereq,
+						Required: true,
+						Message:  fmt.Sprintf("required by installer %s", inst.Name()),
+					})
+				}
 			}
 		}
 	}

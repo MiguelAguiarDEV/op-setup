@@ -6,6 +6,7 @@ import (
 	"github.com/MiguelAguiarDEV/op-setup/internal/adapter"
 	"github.com/MiguelAguiarDEV/op-setup/internal/installer"
 	"github.com/MiguelAguiarDEV/op-setup/internal/model"
+	"github.com/MiguelAguiarDEV/op-setup/internal/pipeline/steps"
 )
 
 func TestPlanner_PlanMCP_TwoAgentsThreeComponents(t *testing.T) {
@@ -193,5 +194,70 @@ func TestPlanner_Plan_UnsupportedProfile(t *testing.T) {
 	_, err := planner.Plan("invalid", nil, nil)
 	if err == nil {
 		t.Fatal("expected error for unsupported profile")
+	}
+}
+
+func TestPlanner_Plan_Full_IncludesInstallerPrereqs(t *testing.T) {
+	registry, _ := adapter.NewDefaultRegistry()
+	installerReg, _ := installer.NewDefaultRegistry("/home/test")
+	planner := NewPlanner(registry, "/home/test")
+	planner.InstallerRegistry = installerReg
+
+	plan, err := planner.Plan(model.ProfileFull,
+		[]model.AgentID{model.AgentClaudeCode},
+		[]model.ComponentID{model.ComponentEngram},
+	)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// First prepare step should be ValidateStep.
+	validateStep, ok := plan.Prepare[0].(*steps.ValidateStep)
+	if !ok {
+		t.Fatal("first prepare step should be ValidateStep")
+	}
+
+	// Installer prerequisites: npm (opencode, context-mode), go (engram), npx (playwright).
+	prereqBinaries := map[string]bool{"npm": false, "go": false, "npx": false}
+	for _, check := range validateStep.Checks {
+		if _, exists := prereqBinaries[check.Binary]; exists {
+			prereqBinaries[check.Binary] = true
+			if !check.Required {
+				t.Fatalf("installer prereq %q should be Required=true", check.Binary)
+			}
+		}
+	}
+	for binary, found := range prereqBinaries {
+		if !found {
+			t.Fatalf("expected installer prereq %q in validation checks", binary)
+		}
+	}
+}
+
+func TestPlanner_Plan_MCPOnly_NoInstallerPrereqs(t *testing.T) {
+	registry, _ := adapter.NewDefaultRegistry()
+	installerReg, _ := installer.NewDefaultRegistry("/home/test")
+	planner := NewPlanner(registry, "/home/test")
+	planner.InstallerRegistry = installerReg
+
+	plan, err := planner.Plan(model.ProfileMCPOnly,
+		[]model.AgentID{model.AgentClaudeCode},
+		[]model.ComponentID{model.ComponentEngram},
+	)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	validateStep, ok := plan.Prepare[0].(*steps.ValidateStep)
+	if !ok {
+		t.Fatal("first prepare step should be ValidateStep")
+	}
+
+	// MCPOnly should NOT include installer prerequisites.
+	installerPrereqs := map[string]bool{"npm": true, "go": true, "npx": true}
+	for _, check := range validateStep.Checks {
+		if installerPrereqs[check.Binary] && check.Required {
+			t.Fatalf("MCPOnly should not include required installer prereq %q", check.Binary)
+		}
 	}
 }

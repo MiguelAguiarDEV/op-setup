@@ -1,6 +1,8 @@
 package tui
 
 import (
+	"os"
+
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/MiguelAguiarDEV/op-setup/internal/adapter"
@@ -10,6 +12,16 @@ import (
 	"github.com/MiguelAguiarDEV/op-setup/internal/pipeline"
 	"github.com/MiguelAguiarDEV/op-setup/internal/tui/screens"
 )
+
+// componentEnvSatisfied returns true if all required env vars for the component are set.
+func componentEnvSatisfied(comp component.Component) bool {
+	for _, env := range comp.EnvVars {
+		if os.Getenv(env) == "" {
+			return false
+		}
+	}
+	return true
+}
 
 // Messages
 type detectDoneMsg struct {
@@ -95,11 +107,11 @@ func NewModel(registry *adapter.Registry, installerReg *installer.Registry, prog
 		agents[i] = agentEntry{adapter: a}
 	}
 
-	// Build component entries — all selected by default.
+	// Build component entries — selected by default only if env vars are satisfied.
 	allComps := component.All()
 	comps := make([]componentEntry, len(allComps))
 	for i, c := range allComps {
-		comps[i] = componentEntry{component: c, selected: true}
+		comps[i] = componentEntry{component: c, selected: componentEnvSatisfied(c)}
 	}
 
 	return Model{
@@ -281,7 +293,7 @@ func (m Model) handleSpace() (tea.Model, tea.Cmd) {
 			m.agents[m.cursor].selected = !m.agents[m.cursor].selected
 		}
 	case ScreenComponents:
-		if m.cursor < len(m.components) {
+		if m.cursor < len(m.components) && componentEnvSatisfied(m.components[m.cursor].component) {
 			m.components[m.cursor].selected = !m.components[m.cursor].selected
 		}
 	}
