@@ -1,5 +1,8 @@
 # op-setup
 
+[![CI](https://github.com/MiguelAguiarDEV/op-setup/actions/workflows/ci.yml/badge.svg)](https://github.com/MiguelAguiarDEV/op-setup/actions/workflows/ci.yml)
+[![Release](https://github.com/MiguelAguiarDEV/op-setup/actions/workflows/release.yml/badge.svg)](https://github.com/MiguelAguiarDEV/op-setup/releases)
+
 TUI installer that sets up complete AI coding environments — install tools, deploy dotfiles, and configure [MCP](https://modelcontextprotocol.io/) servers.
 
 ```
@@ -57,6 +60,22 @@ Deploys OpenCode agents, skills, scripts, plugins, and Neovim config to `~/.conf
 
 ## Install
 
+### One-liner (recommended)
+
+```bash
+curl -sSL https://raw.githubusercontent.com/MiguelAguiarDEV/op-setup/main/install.sh | sh
+```
+
+Detects OS/arch automatically. Installs to `/usr/local/bin/`. Override with `INSTALL_DIR`:
+
+```bash
+curl -sSL https://raw.githubusercontent.com/MiguelAguiarDEV/op-setup/main/install.sh | INSTALL_DIR=~/.local/bin sh
+```
+
+### From GitHub Releases
+
+Download the binary for your platform from [Releases](https://github.com/MiguelAguiarDEV/op-setup/releases).
+
 ### From source
 
 ```bash
@@ -74,9 +93,32 @@ make build
 
 ## Usage
 
+### Interactive (TUI)
+
 ```bash
-op-setup
+op-setup                          # Full TUI flow
+op-setup --dry-run                # Preview without changes
+op-setup --profile mcp-only       # Pre-select profile
 ```
+
+### Non-interactive (headless)
+
+```bash
+op-setup --no-interactive --profile full --dry-run   # Preview full setup
+op-setup --no-interactive --profile full              # Execute full setup
+op-setup --no-interactive --profile mcp-only          # Only configure MCP servers
+op-setup --no-interactive --profile dotfiles-only     # Only deploy dotfiles
+```
+
+### CLI flags
+
+| Flag | Description |
+|------|-------------|
+| `--dry-run` | Show what would happen without executing |
+| `--profile` | Setup profile: `full`, `mcp-only`, `dotfiles-only` |
+| `--no-interactive` | Run headless without TUI (requires `--profile`) |
+
+### TUI flow
 
 The TUI guides you through:
 
