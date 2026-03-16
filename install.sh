@@ -74,12 +74,16 @@ main() {
   tar -xzf "${tmpdir}/${filename}" -C "$tmpdir"
 
   echo "  Installing to ${INSTALL_DIR}/${BINARY}..."
+  if [ ! -d "$INSTALL_DIR" ]; then
+    mkdir -p "$INSTALL_DIR" 2>/dev/null || sudo mkdir -p "$INSTALL_DIR"
+  fi
   if [ -w "$INSTALL_DIR" ]; then
     mv "${tmpdir}/${BINARY}" "${INSTALL_DIR}/${BINARY}"
+    chmod +x "${INSTALL_DIR}/${BINARY}"
   else
     sudo mv "${tmpdir}/${BINARY}" "${INSTALL_DIR}/${BINARY}"
+    sudo chmod +x "${INSTALL_DIR}/${BINARY}"
   fi
-  chmod +x "${INSTALL_DIR}/${BINARY}"
 
   echo ""
   echo "op-setup v${version} installed to ${INSTALL_DIR}/${BINARY}"
