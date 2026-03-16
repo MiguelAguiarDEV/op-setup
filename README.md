@@ -14,6 +14,22 @@ TUI installer that sets up complete AI coding environments — install tools, de
       |_|                         |_|
 ```
 
+## Quick Start
+
+```bash
+# Install
+curl -sSL https://raw.githubusercontent.com/MiguelAguiarDEV/op-setup/main/install.sh | sh
+
+# Run (interactive TUI)
+op-setup
+
+# Or preview what it would do first
+op-setup --dry-run
+
+# Or run headless (CI/scripts)
+op-setup --no-interactive --profile full
+```
+
 ## What it does
 
 op-setup is a single Go binary that sets up your AI coding environment from scratch. Choose a setup profile and it handles the rest — idempotently, with backup and rollback.
