@@ -13,10 +13,16 @@ var version = "dev"
 func main() {
 	app.Version = version
 
+	showVersion := flag.Bool("version", false, "Print version and exit")
 	dryRun := flag.Bool("dry-run", false, "Show what would happen without executing")
 	profileStr := flag.String("profile", "", "Setup profile: full, mcp-only, dotfiles-only")
 	noInteractive := flag.Bool("no-interactive", false, "Run headless without TUI")
 	flag.Parse()
+
+	if *showVersion {
+		fmt.Printf("op-setup %s\n", app.Version)
+		os.Exit(0)
+	}
 
 	cfg, err := app.BuildConfig(*dryRun, *profileStr, *noInteractive)
 	if err != nil {
