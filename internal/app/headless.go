@@ -2,6 +2,7 @@ package app
 
 import (
 	"fmt"
+	"io"
 	"log"
 	"os"
 
@@ -11,6 +12,15 @@ import (
 	"github.com/MiguelAguiarDEV/op-setup/internal/model"
 	"github.com/MiguelAguiarDEV/op-setup/internal/pipeline"
 )
+
+// headlessDeps holds injectable dependencies for the headless runner.
+// Unexported — only used internally and in tests (same package).
+type headlessDeps struct {
+	homeDir           string
+	adapterRegistry   *adapter.Registry
+	installerRegistry *installer.Registry
+	stdout            io.Writer
+}
 
 // RunHeadless runs the setup pipeline without the TUI.
 // It auto-detects agents, selects components with satisfied env vars,
@@ -32,16 +42,27 @@ func RunHeadless(cfg RunConfig) error {
 		installerReg = nil
 	}
 
+	return runHeadless(cfg, headlessDeps{
+		homeDir:           homeDir,
+		adapterRegistry:   registry,
+		installerRegistry: installerReg,
+		stdout:            os.Stdout,
+	})
+}
+
+// runHeadless is the testable core of headless execution.
+// All I/O goes through deps.stdout; all registries come from deps.
+func runHeadless(cfg RunConfig, deps headlessDeps) error {
 	profile := cfg.Profile
 
 	// --- Detect agents ---
 	var selectedAgents []model.AgentID
 	if profile != model.ProfileDotfilesOnly {
-		for _, a := range registry.All() {
-			r, _ := a.Detect(homeDir)
+		for _, a := range deps.adapterRegistry.All() {
+			r, _ := a.Detect(deps.homeDir)
 			if r.Installed {
 				selectedAgents = append(selectedAgents, a.Agent())
-				fmt.Printf("  detected: %s\n", a.Name())
+				fmt.Fprintf(deps.stdout, "  detected: %s\n", a.Name())
 			}
 		}
 		if len(selectedAgents) == 0 {
@@ -63,39 +84,28 @@ func RunHeadless(cfg RunConfig) error {
 	}
 
 	// --- Build plan ---
-	planner := pipeline.NewPlanner(registry, homeDir)
-	if profile == model.ProfileFull && installerReg != nil {
-		planner.InstallerRegistry = installerReg
-	}
-
-	var plan pipeline.StagePlan
-	switch profile {
-	case model.ProfileDotfilesOnly:
-		plan, err = planner.Plan(profile, nil, nil)
-	default:
-		plan, err = planner.Plan(profile, selectedAgents, selectedComponents)
-	}
+	plan, err := pipeline.BuildPlan(deps.adapterRegistry, deps.installerRegistry, deps.homeDir, profile, selectedAgents, selectedComponents)
 	if err != nil {
 		return fmt.Errorf("build plan: %w", err)
 	}
 
 	// --- Dry-run: print plan and exit ---
 	if cfg.DryRun {
-		printPlan(plan, profile)
+		fprintPlan(deps.stdout, plan, profile)
 		return nil
 	}
 
 	// --- Execute ---
-	fmt.Printf("\nExecuting %s...\n\n", profile.Name())
+	fmt.Fprintf(deps.stdout, "\nExecuting %s...\n\n", profile.Name())
 
 	orchestrator := pipeline.NewOrchestrator(func(e pipeline.ProgressEvent) {
-		printProgressEvent(e)
+		fprintProgressEvent(deps.stdout, e)
 	})
 
 	result := orchestrator.Execute(plan)
 
-	fmt.Println()
-	printResult(result)
+	fmt.Fprintln(deps.stdout)
+	fprintResult(deps.stdout, result)
 
 	if result.Err != nil {
 		return result.Err
@@ -103,9 +113,9 @@ func RunHeadless(cfg RunConfig) error {
 	return nil
 }
 
-// printPlan prints the dry-run plan summary.
-func printPlan(plan pipeline.StagePlan, profile model.SetupProfile) {
-	fmt.Printf("\n[DRY RUN] Plan for profile: %s\n", profile.Name())
+// fprintPlan writes the dry-run plan summary to w.
+func fprintPlan(w io.Writer, plan pipeline.StagePlan, profile model.SetupProfile) {
+	fmt.Fprintf(w, "\n[DRY RUN] Plan for profile: %s\n", profile.Name())
 
 	stages := []struct {
 		name  string
@@ -122,17 +132,17 @@ func printPlan(plan pipeline.StagePlan, profile model.SetupProfile) {
 		if len(s.steps) == 0 {
 			continue
 		}
-		fmt.Printf("  %s:\n", s.name)
+		fmt.Fprintf(w, "  %s:\n", s.name)
 		for _, step := range s.steps {
-			fmt.Printf("    - %s\n", step.ID())
+			fmt.Fprintf(w, "    - %s\n", step.ID())
 			total++
 		}
 	}
-	fmt.Printf("Total: %d steps\n", total)
+	fmt.Fprintf(w, "Total: %d steps\n", total)
 }
 
-// printProgressEvent prints a single progress event to stdout.
-func printProgressEvent(e pipeline.ProgressEvent) {
+// fprintProgressEvent writes a single progress event to w.
+func fprintProgressEvent(w io.Writer, e pipeline.ProgressEvent) {
 	var icon string
 	switch e.Status {
 	case pipeline.StatusRunning:
@@ -151,25 +161,25 @@ func printProgressEvent(e pipeline.ProgressEvent) {
 	if e.Err != nil {
 		line += fmt.Sprintf(" — %v", e.Err)
 	}
-	fmt.Println(line)
+	fmt.Fprintln(w, line)
 }
 
-// printResult prints the execution result summary.
-func printResult(result pipeline.ExecutionResult) {
+// fprintResult writes the execution result summary to w.
+func fprintResult(w io.Writer, result pipeline.ExecutionResult) {
 	if result.Err == nil {
-		fmt.Println("Setup complete!")
+		fmt.Fprintln(w, "Setup complete!")
 	} else {
-		fmt.Printf("Setup failed: %v\n", result.Err)
+		fmt.Fprintf(w, "Setup failed: %v\n", result.Err)
 	}
 
 	if result.Rollback != nil {
-		fmt.Println("Rollback was executed.")
+		fmt.Fprintln(w, "Rollback was executed.")
 		for _, sr := range result.Rollback.Steps {
 			status := "ok"
 			if sr.Status == pipeline.StatusFailed {
 				status = "FAILED"
 			}
-			fmt.Printf("  [%s] %s\n", status, sr.StepID)
+			fmt.Fprintf(w, "  [%s] %s\n", status, sr.StepID)
 		}
 	}
 }
