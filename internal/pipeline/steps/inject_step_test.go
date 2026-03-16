@@ -78,6 +78,7 @@ func TestInjectStep_JSON_Idempotent(t *testing.T) {
 }
 
 func TestInjectStep_OpenCode_PostInject(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", "") // Ensure default path resolution.
 	homeDir := t.TempDir()
 	cfgDir := filepath.Join(homeDir, ".config", "opencode")
 	os.MkdirAll(cfgDir, 0o755)

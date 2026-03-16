@@ -12,6 +12,7 @@ import (
 
 	"github.com/MiguelAguiarDEV/op-setup/internal/config"
 	"github.com/MiguelAguiarDEV/op-setup/internal/model"
+	"github.com/MiguelAguiarDEV/op-setup/internal/xdg"
 )
 
 // Adapter manages OpenCode's configuration.
@@ -38,7 +39,7 @@ func (a *Adapter) MCPStrategy() model.MCPStrategy { return model.StrategyMergeIn
 func (a *Adapter) MCPConfigKey() string           { return "mcp" }
 
 func (a *Adapter) ConfigPath(homeDir string) string {
-	return filepath.Join(homeDir, ".config", "opencode", "opencode.json")
+	return filepath.Join(xdg.ConfigDir(homeDir), "opencode", "opencode.json")
 }
 
 func (a *Adapter) Detect(homeDir string) (model.DetectResult, error) {

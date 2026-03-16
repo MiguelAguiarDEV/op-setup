@@ -12,6 +12,7 @@ import (
 )
 
 func TestIntegration_FullRoundTrip(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", "") // Ensure default path resolution.
 	homeDir := t.TempDir()
 
 	// Create config directories.

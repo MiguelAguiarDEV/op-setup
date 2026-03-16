@@ -26,10 +26,21 @@ func TestAdapter_Identity(t *testing.T) {
 	}
 }
 
-func TestAdapter_ConfigPath(t *testing.T) {
+func TestAdapter_ConfigPath_Default(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", "")
 	a := NewAdapter()
 	got := a.ConfigPath("/home/test")
 	want := filepath.Join("/home/test", ".config", "opencode", "opencode.json")
+	if got != want {
+		t.Fatalf("ConfigPath() = %q, want %q", got, want)
+	}
+}
+
+func TestAdapter_ConfigPath_XDG(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", "/custom/config")
+	a := NewAdapter()
+	got := a.ConfigPath("/home/test")
+	want := filepath.Join("/custom/config", "opencode", "opencode.json")
 	if got != want {
 		t.Fatalf("ConfigPath() = %q, want %q", got, want)
 	}
@@ -110,6 +121,7 @@ func TestAdapter_Detect_LookPathCalledWithOpencode(t *testing.T) {
 }
 
 func TestAdapter_PostInject_AddsContextModePlugin(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", "")
 	homeDir := t.TempDir()
 	cfgDir := filepath.Join(homeDir, ".config", "opencode")
 	if err := os.MkdirAll(cfgDir, 0o755); err != nil {
@@ -153,6 +165,7 @@ func TestAdapter_PostInject_AddsContextModePlugin(t *testing.T) {
 }
 
 func TestAdapter_PostInject_Idempotent(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", "")
 	homeDir := t.TempDir()
 	cfgDir := filepath.Join(homeDir, ".config", "opencode")
 	if err := os.MkdirAll(cfgDir, 0o755); err != nil {
@@ -193,6 +206,7 @@ func TestAdapter_PostInject_Idempotent(t *testing.T) {
 }
 
 func TestAdapter_PostInject_NoContextMode_NoOp(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", "")
 	homeDir := t.TempDir()
 	cfgDir := filepath.Join(homeDir, ".config", "opencode")
 	if err := os.MkdirAll(cfgDir, 0o755); err != nil {
@@ -229,6 +243,7 @@ func TestAdapter_PostInject_NoContextMode_NoOp(t *testing.T) {
 }
 
 func TestAdapter_PostInject_ConfigNotExist_CreatesMinimal(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", "")
 	homeDir := t.TempDir()
 	cfgDir := filepath.Join(homeDir, ".config", "opencode")
 	if err := os.MkdirAll(cfgDir, 0o755); err != nil {
@@ -261,6 +276,7 @@ func TestAdapter_PostInject_ConfigNotExist_CreatesMinimal(t *testing.T) {
 }
 
 func TestAdapter_PostInject_ExistingPlugins_Appends(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", "")
 	homeDir := t.TempDir()
 	cfgDir := filepath.Join(homeDir, ".config", "opencode")
 	if err := os.MkdirAll(cfgDir, 0o755); err != nil {

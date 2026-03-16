@@ -14,6 +14,7 @@ import (
 	"github.com/MiguelAguiarDEV/op-setup/internal/installer"
 	"github.com/MiguelAguiarDEV/op-setup/internal/model"
 	"github.com/MiguelAguiarDEV/op-setup/internal/pipeline/steps"
+	"github.com/MiguelAguiarDEV/op-setup/internal/xdg"
 )
 
 // DefaultInstallTimeout is the per-installer timeout.
@@ -239,7 +240,7 @@ func (p *Planner) buildInstallSteps() []Step {
 
 // buildDeploySteps creates a DeployStep for dotfiles.
 func (p *Planner) buildDeploySteps(timestamp string) []Step {
-	configDir := filepath.Join(p.HomeDir, ".config")
+	configDir := xdg.ConfigDir(p.HomeDir)
 	snapshotDir := filepath.Join(p.BackupRoot, timestamp+"-dotfiles")
 
 	deployer := &dotfiles.Deployer{

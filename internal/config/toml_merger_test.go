@@ -212,6 +212,76 @@ func TestTOMLMerger_EmptyServersMap(t *testing.T) {
 	}
 }
 
+func TestTOMLMerger_CommentedSectionHeader_Ignored(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.toml")
+
+	existing := `# Example config
+# [mcp_servers.fake] should not be treated as a section
+model = "gpt-4"
+`
+	os.WriteFile(path, []byte(existing), 0o644)
+
+	m := NewTOMLMerger()
+	changed, err := m.Merge(path, map[string]model.MCPServerConfig{
+		"engram": engramServer(),
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !changed {
+		t.Fatal("expected changed=true")
+	}
+
+	data, _ := os.ReadFile(path)
+	content := string(data)
+
+	// Original comment and content preserved.
+	if !strings.Contains(content, "# [mcp_servers.fake]") {
+		t.Fatal("commented section header should be preserved as-is")
+	}
+	if !strings.Contains(content, `model = "gpt-4"`) {
+		t.Fatal("existing content should be preserved")
+	}
+	if !strings.Contains(content, "[mcp_servers.engram]") {
+		t.Fatal("new section should be added")
+	}
+}
+
+func TestTOMLMerger_CommentInsideSection_Preserved(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.toml")
+
+	existing := `[mcp_servers.engram]
+# This server handles persistent memory
+type = "local"
+enabled = true
+command = ["engram", "mcp", "--tools=agent"]
+`
+	os.WriteFile(path, []byte(existing), 0o644)
+
+	m := NewTOMLMerger()
+	// Re-merge same server — should be idempotent (comment is part of body).
+	changed, err := m.Merge(path, map[string]model.MCPServerConfig{
+		"engram": engramServer(),
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	// The comment inside the section makes the body differ from the rendered version,
+	// so the section will be replaced (changed=true).
+	if !changed {
+		t.Fatal("expected changed=true (comment makes body differ)")
+	}
+
+	data, _ := os.ReadFile(path)
+	content := string(data)
+
+	if !strings.Contains(content, "[mcp_servers.engram]") {
+		t.Fatal("section should exist after re-merge")
+	}
+}
+
 func TestTOMLMerger_ExistingMCPSection_Preserved(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "config.toml")

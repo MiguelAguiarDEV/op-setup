@@ -158,6 +158,16 @@ func parseTOMLSections(data []byte) map[string]string {
 
 	for _, line := range lines {
 		trimmed := strings.TrimSpace(line)
+
+		// Skip comment lines — they are not section headers.
+		if isCommentLine(trimmed) {
+			if currentHeader != "" {
+				currentBody.WriteString(line)
+				currentBody.WriteString("\n")
+			}
+			continue
+		}
+
 		if strings.HasPrefix(trimmed, "[mcp_servers.") {
 			// Save previous section if any.
 			if currentHeader != "" {
@@ -199,6 +209,15 @@ func removeTOMLSections(content string, names []string) string {
 
 	for _, line := range lines {
 		trimmed := strings.TrimSpace(line)
+
+		// Comment lines are never section headers — preserve or skip with current section.
+		if isCommentLine(trimmed) {
+			if !skip {
+				result = append(result, line)
+			}
+			continue
+		}
+
 		if strings.HasPrefix(trimmed, "[mcp_servers.") {
 			if nameSet[trimmed] {
 				skip = true
@@ -215,6 +234,11 @@ func removeTOMLSections(content string, names []string) string {
 	}
 
 	return strings.Join(result, "\n")
+}
+
+// isCommentLine returns true if the trimmed line starts with '#'.
+func isCommentLine(trimmed string) bool {
+	return strings.HasPrefix(trimmed, "#")
 }
 
 // normalizeTOML normalizes whitespace for comparison.

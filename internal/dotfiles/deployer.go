@@ -41,7 +41,7 @@ type Deployer struct {
 	// FS is the embedded filesystem containing dotfiles.
 	FS fs.FS
 
-	// ConfigDir is the base config directory (e.g. ~/.config).
+	// ConfigDir is the base config directory (e.g. $XDG_CONFIG_HOME or ~/.config).
 	ConfigDir string
 
 	// WriteFileAtomic writes a file atomically. Defaults to config.WriteFileAtomic.
