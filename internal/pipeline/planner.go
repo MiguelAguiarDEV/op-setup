@@ -20,6 +20,33 @@ import (
 // DefaultInstallTimeout is the per-installer timeout.
 const DefaultInstallTimeout = 5 * time.Minute
 
+// BuildPlan creates a StagePlan with standard wiring logic.
+// It conditionally sets InstallerRegistry for ProfileFull and passes
+// nil agents/components for ProfileDotfilesOnly.
+//
+// This is the single entry point used by both TUI and headless mode,
+// eliminating duplicated plan-building logic.
+func BuildPlan(
+	registry *adapter.Registry,
+	installerReg *installer.Registry,
+	homeDir string,
+	profile model.SetupProfile,
+	agents []model.AgentID,
+	components []model.ComponentID,
+) (StagePlan, error) {
+	planner := NewPlanner(registry, homeDir)
+	if profile == model.ProfileFull && installerReg != nil {
+		planner.InstallerRegistry = installerReg
+	}
+
+	switch profile {
+	case model.ProfileDotfilesOnly:
+		return planner.Plan(profile, nil, nil)
+	default:
+		return planner.Plan(profile, agents, components)
+	}
+}
+
 // Planner builds a StagePlan from user selections and profile.
 type Planner struct {
 	Registry          *adapter.Registry

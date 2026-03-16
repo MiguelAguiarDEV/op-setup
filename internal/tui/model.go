@@ -370,21 +370,7 @@ func (m Model) installCmd() tea.Cmd {
 	dryRun := m.dryRun
 
 	return func() tea.Msg {
-		planner := pipeline.NewPlanner(registry, homeDir)
-		if profile == model.ProfileFull && installerReg != nil {
-			planner.InstallerRegistry = installerReg
-		}
-
-		var plan pipeline.StagePlan
-		var err error
-
-		switch profile {
-		case model.ProfileDotfilesOnly:
-			plan, err = planner.Plan(profile, nil, nil)
-		default:
-			plan, err = planner.Plan(profile, selectedAgents, selectedComponents)
-		}
-
+		plan, err := pipeline.BuildPlan(registry, installerReg, homeDir, profile, selectedAgents, selectedComponents)
 		if err != nil {
 			return installDoneMsg{result: pipeline.ExecutionResult{Err: err}}
 		}

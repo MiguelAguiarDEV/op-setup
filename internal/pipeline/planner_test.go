@@ -234,6 +234,95 @@ func TestPlanner_Plan_Full_IncludesInstallerPrereqs(t *testing.T) {
 	}
 }
 
+func TestBuildPlan_Full_WithInstallerRegistry(t *testing.T) {
+	registry, _ := adapter.NewDefaultRegistry()
+	installerReg, _ := installer.NewDefaultRegistry("/home/test")
+
+	plan, err := BuildPlan(registry, installerReg, "/home/test", model.ProfileFull,
+		[]model.AgentID{model.AgentClaudeCode},
+		[]model.ComponentID{model.ComponentEngram},
+	)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(plan.Install) != 4 {
+		t.Fatalf("expected 4 install steps, got %d", len(plan.Install))
+	}
+	if len(plan.Deploy) != 1 {
+		t.Fatalf("expected 1 deploy step, got %d", len(plan.Deploy))
+	}
+	if len(plan.Apply) != 1 {
+		t.Fatalf("expected 1 apply step, got %d", len(plan.Apply))
+	}
+}
+
+func TestBuildPlan_Full_NilInstallerRegistry(t *testing.T) {
+	registry, _ := adapter.NewDefaultRegistry()
+
+	plan, err := BuildPlan(registry, nil, "/home/test", model.ProfileFull,
+		[]model.AgentID{model.AgentClaudeCode},
+		[]model.ComponentID{model.ComponentEngram},
+	)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(plan.Install) != 0 {
+		t.Fatalf("expected 0 install steps (nil registry), got %d", len(plan.Install))
+	}
+	if len(plan.Deploy) != 1 {
+		t.Fatalf("expected 1 deploy step, got %d", len(plan.Deploy))
+	}
+}
+
+func TestBuildPlan_MCPOnly(t *testing.T) {
+	registry, _ := adapter.NewDefaultRegistry()
+	installerReg, _ := installer.NewDefaultRegistry("/home/test")
+
+	plan, err := BuildPlan(registry, installerReg, "/home/test", model.ProfileMCPOnly,
+		[]model.AgentID{model.AgentClaudeCode, model.AgentOpenCode},
+		[]model.ComponentID{model.ComponentEngram},
+	)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(plan.Install) != 0 {
+		t.Fatalf("expected 0 install steps for MCPOnly, got %d", len(plan.Install))
+	}
+	if len(plan.Deploy) != 0 {
+		t.Fatalf("expected 0 deploy steps for MCPOnly, got %d", len(plan.Deploy))
+	}
+	if len(plan.Apply) != 2 {
+		t.Fatalf("expected 2 apply steps, got %d", len(plan.Apply))
+	}
+}
+
+func TestBuildPlan_DotfilesOnly(t *testing.T) {
+	registry, _ := adapter.NewDefaultRegistry()
+
+	plan, err := BuildPlan(registry, nil, "/home/test", model.ProfileDotfilesOnly,
+		nil, nil,
+	)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(plan.Prepare) != 0 {
+		t.Fatalf("expected 0 prepare steps, got %d", len(plan.Prepare))
+	}
+	if len(plan.Install) != 0 {
+		t.Fatalf("expected 0 install steps, got %d", len(plan.Install))
+	}
+	if len(plan.Deploy) != 1 {
+		t.Fatalf("expected 1 deploy step, got %d", len(plan.Deploy))
+	}
+	if len(plan.Apply) != 0 {
+		t.Fatalf("expected 0 apply steps, got %d", len(plan.Apply))
+	}
+}
+
 func TestPlanner_Plan_MCPOnly_NoInstallerPrereqs(t *testing.T) {
 	registry, _ := adapter.NewDefaultRegistry()
 	installerReg, _ := installer.NewDefaultRegistry("/home/test")
